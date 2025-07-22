@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Meta Tags para PWA -->
+    <meta name="theme-color" content="#1a1a2e"/>
+    <meta name="description" content="Web App de Organização Financeira Pessoal e Empresarial">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="images/icons/icon-192x192.png">
+
+    <title>Gestor Financeiro Inteligente</title>
+    
+    <!-- Link para o arquivo de Estilo (CSS) -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Ícones (Phosphor Icons) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- TELA INICIAL -->
+        <section id="home-view" class="view active">
+            <header>
+                <h1>Gestor Inteligente</h1>
+            </header>
+            <main class="nav-grid">
+                <div class="nav-card" data-view="cobranca-view">
+                    <div class="notification-badge" id="cobranca-badge">0</div>
+                    <i class="ph-bold ph-currency-dollar"></i>
+                    <h2>Cobranças</h2>
+                    <p>Gerencie boletos e contratos de clientes.</p>
+                </div>
+                <div class="nav-card" data-view="fornecedor-view">
+                    <div class="notification-badge" id="fornecedor-badge">0</div>
+                    <i class="ph-bold ph-truck"></i>
+                    <h2>Fornecedores</h2>
+                    <p>Controle os pagamentos de seus fornecedores.</p>
+                </div>
+                <div class="nav-card" data-view="agenda-view">
+                    <div class="notification-badge" id="agenda-badge">0</div>
+                    <i class="ph-bold ph-calendar"></i>
+                    <h2>Agenda</h2>
+                    <p>Organize seus atendimentos e compromissos.</p>
+                </div>
+                <div class="nav-card" data-view="pessoal-view">
+                    <div class="notification-badge" id="pessoal-badge">0</div>
+                    <i class="ph-bold ph-house"></i>
+                    <h2>Despesas Pessoais</h2>
+                    <p>Acompanhe suas contas e despesas pessoais.</p>
+                </div>
+                <div class="nav-card" data-view="backup-view">
+                    <i class="ph-bold ph-database"></i>
+                    <h2>Backup</h2>
+                    <p>Exporte ou importe seus dados com segurança.</p>
+                </div>
+            </main>
+        </section>
+
+        <!-- TELA DE COBRANÇAS -->
+        <section id="cobranca-view" class="view">
+            <div class="view-header">
+                <h1><i class="ph-bold ph-currency-dollar"></i> Cobranças</h1>
+                <button class="home-btn" data-view="home-view"><i class="ph-bold ph-house"></i></button>
+            </div>
+            <div class="form-container">
+                <h2>Nova Cobrança</h2>
+                <form id="form-cobranca">
+                    <div class="input-group">
+                        <label for="cobranca-cliente">Nome do Cliente/Empresa</label>
+                        <input type="text" id="cobranca-cliente" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="cobranca-tipo">Tipo</label>
+                        <select id="cobranca-tipo">
+                            <option value="Contrato">Contrato</option>
+                            <option value="Boleto de cobrança">Boleto de cobrança</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="cobranca-vencimento">Data do Vencimento</label>
+                        <input type="date" id="cobranca-vencimento" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="cobranca-valor">Valor (R$)</label>
+                        <input type="number" step="0.01" id="cobranca-valor" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="cobranca-pagamento">Forma de Pagamento</label>
+                        <select id="cobranca-pagamento">
+                            <option value="Pix">Pix</option>
+                            <option value="Boleto">Boleto</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus-circle"></i> Adicionar Cobrança</button>
+                </form>
+            </div>
+            <div class="view-actions">
+                <div class="input-group">
+                    <label for="cobranca-notif-days">Alertar com antecedência de:</label>
+                    <select id="cobranca-notif-days" class="notif-select">
+                        <option value="1">1 dia</option>
+                        <option value="2">2 dias</option>
+                        <option value="3">3 dias</option>
+                        <option value="4">4 dias</option>
+                        <option value="5" selected>5 dias</option>
+                    </select>
+                </div>
+                <button id="pdf-cobranca" class="btn btn-secondary"><i class="ph ph-file-pdf"></i> Gerar Relatório PDF</button>
+            </div>
+            <div class="item-list" id="cobranca-list"></div>
+        </section>
+
+        <!-- TELA DE FORNECEDORES -->
+        <section id="fornecedor-view" class="view">
+             <div class="view-header">
+                <h1><i class="ph-bold ph-truck"></i> Fornecedores</h1>
+                <button class="home-btn" data-view="home-view"><i class="ph-bold ph-house"></i></button>
+            </div>
+            <div class="form-container">
+                <h2>Novo Pagamento a Fornecedor</h2>
+                <form id="form-fornecedor">
+                    <div class="input-group">
+                        <label for="fornecedor-nome">Nome do Fornecedor</label>
+                        <input type="text" id="fornecedor-nome" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="fornecedor-material">Material (para qual cliente)</label>
+                        <input type="text" id="fornecedor-material" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="fornecedor-vencimento">Data do Vencimento</label>
+                        <input type="date" id="fornecedor-vencimento" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="fornecedor-valor">Valor do Boleto (R$)</label>
+                        <input type="number" step="0.01" id="fornecedor-valor" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus-circle"></i> Adicionar Pagamento</button>
+                </form>
+            </div>
+             <div class="view-actions">
+                <div class="input-group">
+                    <label for="fornecedor-notif-days">Alertar com antecedência de:</label>
+                    <select id="fornecedor-notif-days" class="notif-select">
+                        <option value="1">1 dia</option>
+                        <option value="2">2 dias</option>
+                        <option value="3">3 dias</option>
+                        <option value="4">4 dias</option>
+                        <option value="5" selected>5 dias</option>
+                    </select>
+                </div>
+                <button id="pdf-fornecedor" class="btn btn-secondary"><i class="ph ph-file-pdf"></i> Gerar Relatório PDF</button>
+            </div>
+            <div class="item-list" id="fornecedor-list"></div>
+        </section>
+
+        <!-- TELA DE AGENDA -->
+        <section id="agenda-view" class="view">
+            <div class="view-header">
+                <h1><i class="ph-bold ph-calendar"></i> Agenda</h1>
+                <button class="home-btn" data-view="home-view"><i class="ph-bold ph-house"></i></button>
+            </div>
+            <div class="form-container">
+                <h2>Novo Compromisso</h2>
+                <form id="form-agenda">
+                    <div class="input-group">
+                        <label for="agenda-cliente">Cliente</label>
+                        <input type="text" id="agenda-cliente" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="agenda-data">Data</label>
+                        <input type="date" id="agenda-data" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="agenda-horario">Horário</label>
+                        <input type="time" id="agenda-horario" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="agenda-compromisso">Compromisso (Descrição)</label>
+                        <input type="text" id="agenda-compromisso" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus-circle"></i> Agendar</button>
+                </form>
+            </div>
+            <div class="view-actions">
+                <div class="input-group">
+                    <label for="agenda-notif-days">Alertar com antecedência de:</label>
+                    <select id="agenda-notif-days" class="notif-select">
+                        <option value="1">1 dia</option>
+                        <option value="2">2 dias</option>
+                        <option value="3">3 dias</option>
+                        <option value="4">4 dias</option>
+                        <option value="5" selected>5 dias</option>
+                    </select>
+                </div>
+                <button id="pdf-agenda" class="btn btn-secondary"><i class="ph ph-file-pdf"></i> Gerar Relatório PDF</button>
+            </div>
+            <div id="calendar-container">
+                <div class="calendar-header">
+                    <button id="prev-month"><i class="ph-bold ph-caret-left"></i></button>
+                    <h2 id="month-year"></h2>
+                    <button id="next-month"><i class="ph-bold ph-caret-right"></i></button>
+                </div>
+                <div class="calendar-grid weekdays">
+                    <div class="weekday">Dom</div>
+                    <div class="weekday">Seg</div>
+                    <div class="weekday">Ter</div>
+                    <div class="weekday">Qua</div>
+                    <div class="weekday">Qui</div>
+                    <div class="weekday">Sex</div>
+                    <div class="weekday">Sáb</div>
+                </div>
+                <div class="calendar-grid" id="calendar-body"></div>
+            </div>
+            <div class="item-list" id="agenda-list"></div>
+        </section>
+
+        <!-- TELA DE DESPESAS PESSOAIS -->
+        <section id="pessoal-view" class="view">
+            <div class="view-header">
+                <h1><i class="ph-bold ph-house"></i> Despesas Pessoais</h1>
+                <button class="home-btn" data-view="home-view"><i class="ph-bold ph-house"></i></button>
+            </div>
+             <div class="form-container">
+                <h2>Nova Despesa Pessoal</h2>
+                <form id="form-pessoal">
+                    <div class="input-group">
+                        <label for="pessoal-conta">Conta (Empresa/Serviço)</label>
+                        <input type="text" id="pessoal-conta" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="pessoal-tipo">Tipo</label>
+                        <select id="pessoal-tipo">
+                            <option value="Fixa">Despesa Fixa</option>
+                            <option value="Variável">Despesa Variável</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="pessoal-vencimento">Data do Vencimento</label>
+                        <input type="date" id="pessoal-vencimento" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="pessoal-valor">Valor (R$)</label>
+                        <input type="number" step="0.01" id="pessoal-valor" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus-circle"></i> Adicionar Despesa</button>
+                </form>
+            </div>
+            <div class="view-actions">
+                <div class="input-group">
+                    <label for="pessoal-notif-days">Alertar com antecedência de:</label>
+                    <select id="pessoal-notif-days" class="notif-select">
+                        <option value="1">1 dia</option>
+                        <option value="2">2 dias</option>
+                        <option value="3">3 dias</option>
+                        <option value="4">4 dias</option>
+                        <option value="5" selected>5 dias</option>
+                    </select>
+                </div>
+                <button id="pdf-pessoal" class="btn btn-secondary"><i class="ph ph-file-pdf"></i> Gerar Relatório PDF</button>
+            </div>
+            <div class="item-list" id="pessoal-list"></div>
+        </section>
+
+        <!-- TELA DE BACKUP -->
+        <section id="backup-view" class="view">
+            <div class="view-header">
+                <h1><i class="ph-bold ph-database"></i> Backup e Restauração</h1>
+                <button class="home-btn" data-view="home-view"><i class="ph-bold ph-house"></i></button>
+            </div>
+            <div class="form-container">
+                <h2>Gerenciar Dados</h2>
+                <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Exporte seus dados para um arquivo JSON para guardá-los com segurança, ou importe um arquivo para restaurar suas informações.</p>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button id="export-btn" class="btn btn-primary"><i class="ph ph-download-simple"></i> Exportar Dados</button>
+                    <button id="import-btn" class="btn btn-secondary"><i class="ph ph-upload-simple"></i> Importar Dados</button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL PARA EDIÇÃO -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title">Editar Item</h2>
+            <form id="edit-form" class="form-container" style="background: transparent; padding: 0; margin-top: 1rem;"></form>
+        </div>
+    </div>
+
+    <!-- Bibliotecas de terceiros -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Link para o arquivo de Script (JavaScript) -->
+    <script src="script.js"></script>
+</body>
+</html>
+

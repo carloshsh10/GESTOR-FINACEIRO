@@ -1,0 +1,561 @@
+/* --- RESET E CONFIGURAÇÕES GLOBAIS --- */
+:root {
+    --bg-dark: #0A0A10; /* Fundo ligeiramente mais escuro */
+    --surface-dark: #1E1E2E; /* Superfície dos cards e formulários */
+    --primary: #00E676; /* Verde neon/brilhante (ajustado para high-tech) */
+    --primary-variant: #6200EE; /* Violeta/roxo para contraste */
+    --secondary: #03DAC6; /* Ciano claro (para textos e destaques) */
+    --error: #FF5252; /* Vermelho vibrante para erro */
+    --on-surface: #E0E0E0; /* Texto principal claro */
+    --on-surface-secondary: #B0B0B0; /* Texto secundário e labels */
+    --shadow: rgba(0, 0, 0, 0.6); /* Sombra mais intensa para profundidade */
+    --border-color: #3A3A4A; /* Cor de borda para inputs e separadores */
+    --glow-color: rgba(0, 230, 118, 0.3); /* Brilho suave baseado no primary */
+
+    /* Cores de notificação - ligeiramente ajustadas para o tema */
+    --notif-cobranca: #FF1744; /* Vermelho mais intenso */
+    --notif-fornecedor: #FFAB00; /* Laranja vibrante */
+    --notif-agenda: #FFEA00; /* Amarelo elétrico */
+    --notif-pessoal: #2979FF; /* Azul intenso */
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--on-surface);
+    overscroll-behavior: contain;
+    overflow-x: hidden; /* Evita rolagem horizontal */
+}
+
+/* --- ESTRUTURA PRINCIPAL E NAVEGAÇÃO --- */
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem; /* Padding ligeiramente maior */
+}
+
+.view {
+    display: none;
+    flex-direction: column;
+    gap: 2rem; /* Espaçamento maior entre seções */
+    animation: fadeIn 0.7s ease-in-out forwards; /* Animação mais suave e duradoura */
+}
+
+.view.active {
+    display: flex;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); filter: blur(5px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border-color); /* Borda mais definida */
+    margin-bottom: 1rem; /* Espaço após o header */
+}
+
+.view-header h1 {
+    font-size: 2rem; /* Título maior */
+    color: var(--secondary);
+    text-shadow: 0 0 8px rgba(3, 218, 198, 0.4); /* Sombra de texto sutil */
+}
+
+.home-btn {
+    background: var(--surface-dark);
+    border: 1px solid var(--border-color); /* Borda para o botão */
+    color: var(--primary);
+    padding: 0.85rem; /* Padding ligeiramente maior */
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.4s ease, transform 0.2s ease, box-shadow 0.4s ease; /* Mais transições */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px var(--shadow); /* Sombra mais pronunciada */
+}
+
+.home-btn:hover {
+    background-color: #2E2E3E; /* Tom mais claro no hover */
+    transform: translateY(-2px) scale(1.05); /* Pequeno movimento e escala */
+    box-shadow: 0 6px 15px var(--shadow), 0 0 15px var(--glow-color); /* Sombra e glow */
+}
+
+.home-btn i {
+    font-size: 1.7rem; /* Ícone maior */
+}
+
+/* --- TELA INICIAL (HOME) --- */
+#home-view h1 {
+    text-align: center;
+    font-size: 2.5rem; /* Título principal maior */
+    margin-bottom: 2rem; /* Mais espaçamento */
+    color: var(--primary);
+    text-shadow: 0 0 15px rgba(0, 230, 118, 0.6); /* Glow intenso no título */
+}
+
+.nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.8rem; /* Aumento do espaçamento */
+}
+
+.nav-card {
+    background-color: var(--surface-dark);
+    padding: 2rem; /* Padding maior */
+    border-radius: 18px; /* Bordas mais arredondadas */
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.4s ease, box-shadow 0.4s ease, background-color 0.4s ease, border-color 0.4s ease; /* Mais transições */
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border-color); /* Borda padrão */
+    box-shadow: 0 6px 18px var(--shadow); /* Sombra padrão mais forte */
+}
+
+.nav-card:hover {
+    transform: translateY(-8px) scale(1.02); /* Movimento e escala mais notáveis */
+    box-shadow: 0 12px 30px var(--shadow), 0 0 20px var(--glow-color); /* Sombra e glow intensificados */
+    background-color: #2A2A3A; /* Levemente mais claro no hover */
+    border-color: var(--primary); /* Borda com a cor primária no hover */
+}
+
+.nav-card i {
+    font-size: 3.5rem; /* Ícone maior */
+    color: var(--primary);
+    margin-bottom: 1.2rem;
+    filter: drop-shadow(0 0 10px rgba(0, 230, 118, 0.5)); /* Glow no ícone */
+}
+
+.nav-card h2 {
+    font-size: 1.4rem; /* Título do card maior */
+    margin-bottom: 0.6rem;
+    color: var(--secondary);
+}
+
+.nav-card p {
+    color: var(--on-surface-secondary);
+    font-size: 1rem; /* Texto do card ligeiramente maior */
+}
+
+.notification-badge {
+    position: absolute;
+    top: 18px; /* Ajustado */
+    right: 18px; /* Ajustado */
+    background-color: var(--error);
+    color: white;
+    width: 28px; /* Maior */
+    height: 28px; /* Maior */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem; /* Texto maior */
+    font-weight: bold;
+    border: 3px solid var(--surface-dark); /* Borda mais espessa */
+    transform: scale(0) rotate(-180deg); /* Animação de rotação */
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Bounce effect */
+}
+
+.notification-badge.visible {
+    transform: scale(1) rotate(0deg);
+}
+
+/* Cores específicas dos badges (sem alteração) */
+#cobranca-badge { background-color: var(--notif-cobranca); }
+#fornecedor-badge { background-color: var(--notif-fornecedor); }
+#agenda-badge { background-color: var(--notif-agenda); }
+#pessoal-badge { background-color: var(--notif-pessoal); }
+
+/* --- FORMULÁRIOS E BOTÕES --- */
+.form-container {
+    background: var(--surface-dark);
+    padding: 2rem; /* Padding maior */
+    border-radius: 18px; /* Bordas mais arredondadas */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; /* Espaçamento maior entre elementos */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 15px var(--shadow);
+}
+
+.form-container h2 {
+    margin-bottom: 0.8rem;
+    color: var(--secondary);
+    font-size: 1.6rem; /* Título do formulário maior */
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem; /* Espaçamento ajustado */
+}
+
+.input-group label {
+    color: var(--on-surface-secondary);
+    font-size: 1rem; /* Label ligeiramente maior */
+}
+
+.input-group input, .input-group select {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color); /* Borda consistente */
+    border-radius: 10px; /* Bordas mais arredondadas */
+    padding: 0.9rem; /* Padding maior */
+    color: var(--on-surface);
+    font-size: 1.05rem; /* Fonte ligeiramente maior */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-group input:focus, .input-group select:focus {
+    outline: none;
+    border-color: var(--primary); /* Borda primária no foco */
+    box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.3); /* Glow no foco */
+}
+
+.btn {
+    padding: 1rem 1.8rem; /* Padding maior */
+    border: none;
+    border-radius: 10px; /* Bordas mais arredondadas */
+    font-size: 1.05rem; /* Fonte ligeiramente maior */
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease; /* Transições mais suaves */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    text-transform: uppercase; /* Texto em maiúsculas */
+    letter-spacing: 0.05em; /* Espaçamento entre letras */
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    color: var(--bg-dark); /* Cor de texto para contraste no botão primário */
+    box-shadow: 0 4px 12px rgba(0, 230, 118, 0.4); /* Sombra com glow */
+}
+
+.btn-primary:hover {
+    background-color: #39FF6C; /* Tom mais claro no hover */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 230, 118, 0.6); /* Sombra mais intensa */
+}
+
+.btn-secondary {
+    background-color: transparent; /* Fundo transparente */
+    color: var(--primary);
+    border: 1px solid var(--primary); /* Borda com primary */
+    box-shadow: 0 2px 8px rgba(0, 230, 118, 0.2);
+}
+
+.btn-secondary:hover {
+    background-color: rgba(0, 230, 118, 0.1); /* Fundo sutil no hover */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 230, 118, 0.4);
+}
+
+.btn-danger {
+    background-color: var(--error);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 82, 82, 0.4);
+}
+
+.btn-danger:hover {
+    background-color: #FF7070;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 82, 82, 0.6);
+}
+
+/* --- LISTAS DE ITENS --- */
+.item-list {
+    display: grid;
+    gap: 1.5rem; /* Espaçamento ajustado */
+    grid-template-columns: 1fr;
+}
+
+.item-card {
+    background: var(--surface-dark);
+    padding: 1.8rem; /* Padding ajustado */
+    border-radius: 16px; /* Bordas mais arredondadas */
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem; /* Espaçamento interno */
+    border-left: 6px solid; /* Borda lateral mais grossa */
+    transition: box-shadow 0.4s ease, transform 0.2s ease, border-color 0.4s ease; /* Mais transições */
+    box-shadow: 0 4px 15px var(--shadow);
+}
+
+.item-card:hover {
+    box-shadow: 0 8px 20px var(--shadow), 0 0 10px var(--glow-color); /* Sombra e glow no hover */
+    transform: translateY(-3px);
+}
+
+.item-card.status-done {
+    opacity: 0.7; /* Ligeiramente mais opaco para indicar concluído */
+    border-left-color: #4CAF50 !important; /* Verde mais vibrante */
+    filter: grayscale(20%); /* Pequeno efeito de escala de cinza */
+}
+.item-card.status-done .item-header h3 {
+     text-decoration: line-through;
+     color: var(--on-surface-secondary); /* Cor para texto riscado */
+}
+.item-card.status-done .item-details {
+    color: var(--on-surface-secondary);
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Alinhamento central */
+}
+
+.item-header h3 {
+    font-size: 1.3rem; /* Título do item maior */
+    margin-right: 1rem;
+    color: var(--secondary); /* Cor de destaque */
+}
+
+.item-due-date {
+    font-size: 0.95rem; /* Fonte ligeiramente maior */
+    font-weight: 600;
+    padding: 0.4rem 0.8rem; /* Padding ajustado */
+    border-radius: 8px; /* Bordas mais arredondadas */
+    white-space: nowrap;
+    text-shadow: 0 0 5px rgba(0,0,0,0.3); /* Sombra no texto da data */
+}
+
+.due-urgent { background-color: var(--notif-cobranca); color: white; }
+.due-soon { background-color: var(--notif-fornecedor); color: black; }
+.due-normal { background-color: var(--notif-pessoal); color: white; }
+
+.item-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* Min-width ajustado */
+    gap: 0.8rem; /* Espaçamento ajustado */
+    font-size: 1rem; /* Fonte ligeiramente maior */
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-item span:first-child {
+    color: var(--on-surface-secondary);
+    font-size: 0.85rem; /* Fonte ligeiramente maior */
+    margin-bottom: 0.2rem;
+}
+
+.item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem; /* Espaçamento maior entre botões */
+    margin-top: 0.8rem;
+    justify-content: flex-end;
+}
+
+.item-actions .btn {
+    padding: 0.6rem 1.2rem; /* Padding ajustado */
+    font-size: 0.9rem; /* Fonte ajustada */
+}
+
+/* --- CALENDÁRIO (AGENDA) --- */
+#calendar-container {
+    background: var(--surface-dark);
+    padding: 2rem; /* Padding maior */
+    border-radius: 18px; /* Bordas mais arredondadas */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 15px var(--shadow);
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.8rem; /* Espaçamento maior */
+}
+
+.calendar-header button {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 1.8rem; /* Ícones maiores */
+    transition: color 0.3s ease, transform 0.2s ease;
+}
+
+.calendar-header button:hover {
+    color: #39FF6C; /* Tom mais claro no hover */
+    transform: scale(1.1);
+}
+
+#month-year {
+    font-size: 1.8rem; /* Título do mês/ano maior */
+    font-weight: 600;
+    color: var(--secondary);
+    text-shadow: 0 0 8px rgba(3, 218, 198, 0.3);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px; /* Espaçamento entre os dias */
+}
+
+.calendar-day, .weekday {
+    text-align: center;
+    padding: 0.7rem; /* Padding ajustado */
+    border-radius: 10px; /* Bordas mais arredondadas */
+}
+
+.weekday {
+    font-weight: bold;
+    color: var(--on-surface-secondary);
+    font-size: 1.05rem;
+}
+
+.calendar-day {
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+    min-height: 70px; /* Altura mínima maior */
+    display: flex;
+    flex-direction: column; /* Para empilhar o número e o ponto */
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+}
+
+.calendar-day:not(.other-month):hover {
+    background-color: #2E2E3E; /* Tom mais claro no hover */
+    transform: translateY(-2px);
+}
+
+.calendar-day.today {
+    border: 2px solid var(--primary); /* Borda mais grossa para hoje */
+    box-shadow: 0 0 8px rgba(0, 230, 118, 0.4); /* Glow para hoje */
+}
+
+.calendar-day.other-month {
+    color: #6A6A7A; /* Cor mais escura para dias de outros meses */
+}
+
+.calendar-day .event-dot {
+    position: absolute;
+    bottom: 10px; /* Posição ajustada */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px; /* Ponto maior */
+    height: 8px; /* Ponto maior */
+    border-radius: 50%;
+    background-color: var(--notif-agenda);
+    box-shadow: 0 0 8px var(--notif-agenda); /* Glow no ponto de evento */
+}
+
+/* --- MODAL --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* Fundo mais escuro */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px); /* Efeito de blur no fundo */
+    animation: fadeInModal 0.3s ease-out forwards;
+}
+
+.modal-overlay.visible {
+    display: flex;
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background: var(--surface-dark);
+    padding: 2.5rem; /* Padding maior */
+    border-radius: 20px; /* Bordas mais arredondadas */
+    width: 90%;
+    max-width: 550px; /* Largura máxima maior */
+    animation: slideInModal 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards; /* Animação de bounce */
+    border: 1px solid var(--primary); /* Borda de destaque */
+    box-shadow: 0 10px 30px var(--shadow), 0 0 25px rgba(0, 230, 118, 0.5); /* Sombra e glow */
+}
+
+@keyframes slideInModal {
+    from { transform: translateY(-50px) scale(0.9); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+#modal-title {
+    color: var(--primary);
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+/* --- RESPONSIVIDADE --- */
+@media (min-width: 768px) {
+    .item-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .form-container {
+        max-width: 90%; /* Ajuste para centralizar melhor em telas maiores */
+        align-self: center;
+    }
+    .app-container {
+        padding: 2rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .item-list {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .form-container {
+        max-width: 70%;
+    }
+}
+
+/* Estilos para a seção de ações da view (gerar PDF, notificação) */
+.view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem; /* Espaçamento entre os elementos de ação */
+    background: var(--surface-dark);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 15px var(--shadow);
+    align-items: center;
+    justify-content: space-between;
+}
+
+.view-actions .input-group {
+    flex: 1; /* Permite que o grupo de input ocupe espaço */
+    min-width: 200px; /* Garante que não fique muito pequeno */
+    margin-bottom: 0; /* Remove margem inferior padrão */
+}
+
+/* Ajuste específico para o seletor de notificação */
+.notif-select {
+    width: auto;
+    min-width: 120px;
+}
