@@ -410,19 +410,19 @@ body {
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 8px; /* Espaçamento entre os dias */
+    gap: 4px; /* CORREÇÃO: Reduzido de 8px para 4px para melhor ajuste em telas pequenas */
 }
 
 .calendar-day, .weekday {
     text-align: center;
-    padding: 0.7rem; /* Padding ajustado */
+    padding: 0.6rem 0.2rem; /* CORREÇÃO: Padding horizontal reduzido para evitar quebra de linha e desalinhamento */
     border-radius: 10px; /* Bordas mais arredondadas */
 }
 
 .weekday {
     font-weight: bold;
     color: var(--on-surface-secondary);
-    font-size: 1.05rem;
+    font-size: 0.9rem; /* CORREÇÃO: Reduzido de 1.05rem para 0.9rem para caber em colunas estreitas de smartphones */
 }
 
 .calendar-day {

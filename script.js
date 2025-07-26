@@ -8,6 +8,7 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Script: DOMContentLoaded event fired.');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
     const views = document.querySelectorAll('.view');
@@ -15,41 +16,169 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeBtns = document.querySelectorAll('.home-btn');
     const { jsPDF } = window.jspdf;
 
-    let db; // Variável para a instância do banco de dados
-    let currentEdit = { store: null, id: null }; // Para controlar o item em edição
-    let notifiedItems = {}; // NOVO: Objeto para controlar itens já notificados nesta sessão
+    console.log(`Script: Found ${views.length} views.`);
+    console.log(`Script: Found ${navCards.length} navigation cards.`);
+    console.log(`Script: Found ${homeBtns.length} home buttons.`);
 
+    let db; // Variável para a instância do banco de dados IndexedDB
+    let currentEdit = { store: null, id: null }; // Para controlar o item em edição
+    
     const STORES = ['cobrancas', 'fornecedores', 'agenda', 'pessoais'];
+
+    // --- ELEMENTOS DO FIREBASE STATUS E AUTENTICAÇÃO ---
+    const firebaseStatusText = document.getElementById('status-text');
+    const firebaseAuthBtn = document.getElementById('firebase-auth-btn');
+
+    // --- FIREBASE CONFIGURAÇÃO E INICIALIZAÇÃO ---
+    // Variáveis globais fornecidas pelo ambiente Canvas
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        apiKey: "AIzaSyAZE9ihM7rtIWCEzoC4LB-0uNt17o46V_c",
+        authDomain: "pwa-gestor-gh.firebaseapp.com",
+        projectId: "pwa-gestor-gh",
+        storageBucket: "pwa-gestor-gh.firebasestorage.app",
+        messagingSenderId: "900735167399",
+        appId: "1:900735167399:web:749618270b63477fdf2482",
+        measurementId: "G-6XZ2PQTHF7"
+    };
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Importações do Firebase SDK
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInAnonymously, signInWithCustomToken, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc, setDoc, collection, query, onSnapshot, deleteDoc, addDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    let firebaseApp;
+    let firebaseAuth;
+    let firestoreDb;
+    let currentFirebaseUser = null;
+    let firebaseUserId = null; // Para armazenar o UID do usuário logado ou um ID anônimo
+
+    // Função para atualizar o status da conexão Firebase na UI
+    function updateFirebaseStatus(isConnected) {
+        if (isConnected) {
+            firebaseStatusText.textContent = 'Conectado';
+            firebaseStatusText.style.color = 'var(--primary)'; // Verde
+        } else {
+            firebaseStatusText.textContent = 'Desconectado';
+            firebaseStatusText.style.color = 'var(--error)'; // Vermelho
+        }
+    }
+
+    // Função para atualizar o botão de login/logout
+    function updateFirebaseAuthButton() {
+        if (currentFirebaseUser) {
+            firebaseAuthBtn.textContent = 'Deslogar do Firebase';
+            firebaseAuthBtn.classList.remove('btn-danger');
+            firebaseAuthBtn.classList.add('btn-primary');
+        } else {
+            firebaseAuthBtn.textContent = 'Logar no Firebase';
+            firebaseAuthBtn.classList.remove('btn-primary');
+            firebaseAuthBtn.classList.add('btn-danger');
+        }
+    }
+
+    // Inicialização do Firebase
+    async function initFirebase() {
+        try {
+            firebaseApp = initializeApp(firebaseConfig);
+            firebaseAuth = getAuth(firebaseApp);
+            firestoreDb = getFirestore(firebaseApp);
+
+            // Listener para mudanças no estado de autenticação
+            onAuthStateChanged(firebaseAuth, async (user) => {
+                currentFirebaseUser = user;
+                if (user) {
+                    firebaseUserId = user.uid;
+                    updateFirebaseStatus(true);
+                    console.log('Firebase: Usuário autenticado:', user.uid);
+                } else {
+                    // Se não houver usuário logado, tenta logar anonimamente
+                    console.log('Firebase: Usuário deslogado. Tentando login anônimo...');
+                    await signInAnonymously(firebaseAuth);
+                    firebaseUserId = firebaseAuth.currentUser?.uid || crypto.randomUUID(); // Fallback para ID anônimo
+                    updateFirebaseStatus(true); // Ainda conectado, mas anonimamente
+                    console.log('Firebase: Logado anonimamente com ID:', firebaseUserId);
+                }
+                updateFirebaseAuthButton();
+            });
+
+            // Tenta fazer login com o token inicial se disponível
+            if (initialAuthToken) {
+                await signInWithCustomToken(firebaseAuth, initialAuthToken);
+                console.log('Firebase: Login com token personalizado bem-sucedido.');
+            } else {
+                // Se não houver token, tenta login anônimo imediatamente
+                await signInAnonymously(firebaseAuth);
+                console.log('Firebase: Login anônimo inicial bem-sucedido.');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao inicializar Firebase:', error);
+            updateFirebaseStatus(false);
+            updateFirebaseAuthButton();
+        }
+    }
+
+    // Lógica do botão de login/logout
+    firebaseAuthBtn.addEventListener('click', async () => {
+        if (currentFirebaseUser) {
+            // Se logado, desloga
+            try {
+                await signOut(firebaseAuth);
+                console.log('Firebase: Usuário deslogado.');
+                // onAuthStateChanged cuidará do login anônimo após o logout
+            } catch (error) {
+                console.error('Erro ao deslogar:', error);
+            }
+        } else {
+            // Se deslogado, tenta logar anonimamente (ou você pode adicionar um fluxo de login com credenciais aqui)
+            try {
+                await signInAnonymously(firebaseAuth);
+                console.log('Firebase: Tentando login anônimo...');
+            } catch (error) {
+                console.error('Erro ao tentar login anônimo:', error);
+            }
+        }
+    });
 
     // --- NAVEGAÇÃO ENTRE TELAS (VIEWS) ---
     function switchView(viewId) {
+        console.log(`Script: Switching to view: ${viewId}`); // Debug log
         views.forEach(view => {
             view.classList.remove('active');
         });
         const activeView = document.getElementById(viewId);
         if (activeView) {
             activeView.classList.add('active');
+            console.log(`Script: View ${viewId} is now active.`); // Debug log
+        } else {
+            console.warn(`Script: View with ID ${viewId} not found.`); // Debug log
         }
     }
 
     navCards.forEach(card => {
-        card.addEventListener('click', () => {
+        card.addEventListener('click', (event) => {
             const viewId = card.getAttribute('data-view');
+            console.log(`Script: Nav Card clicked! Target view: ${viewId}`); // Debug log
             if (viewId) switchView(viewId);
         });
+        console.log(`Script: Listener attached to nav card with data-view: ${card.getAttribute('data-view')}`); // Debug log
     });
 
     homeBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (event) => {
             const viewId = btn.getAttribute('data-view');
+            console.log(`Script: Home Button clicked! Target view: ${viewId}`); // Debug log
             if (viewId) switchView(viewId);
         });
+        console.log(`Script: Listener attached to home button with data-view: ${btn.getAttribute('data-view')}`); // Debug log
     });
 
     // --- BANCO DE DADOS (INDEXEDDB) ---
     function initDB() {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open('FinanceiroPWA_DB', 3); // Versão incrementada para forçar upgrade
+            const request = indexedDB.open('FinanceiroPWA_DB', 3); 
 
             request.onupgradeneeded = event => {
                 const dbInstance = event.target.result;
@@ -65,73 +194,180 @@ document.addEventListener('DOMContentLoaded', () => {
 
             request.onsuccess = event => {
                 db = event.target.result;
-                console.log('Banco de dados aberto com sucesso.');
+                console.log('Banco de dados IndexedDB aberto com sucesso.');
                 resolve(db);
             };
 
             request.onerror = event => {
-                console.error('Erro ao abrir o banco de dados:', event.target.error);
+                console.error('Erro ao abrir o banco de dados IndexedDB:', event.target.error);
                 reject(event.target.error);
             };
         });
     }
 
-    // --- OPERAÇÕES CRUD NO BANCO DE DADOS ---
-    function addItem(storeName, item) {
-        return new Promise((resolve, reject) => {
+    // --- OPERAÇÕES CRUD NO BANCO DE DADOS (INDEXEDDB e Firestore) ---
+    async function addItem(storeName, item) {
+        // Adiciona ao IndexedDB
+        let indexedDbId = await new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.add(item);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
-    }
 
-    function getAllItems(storeName) {
-        return new Promise((resolve, reject) => {
-            if (!db) {
-                return reject("Banco de dados não inicializado.");
+        // Adiciona ao Firestore se autenticado
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                // Remove o ID do IndexedDB para que o Firestore gere o seu próprio
+                const itemToFirestore = { ...item };
+                delete itemToFirestore.id; 
+                const docRef = await addDoc(collection(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`), itemToFirestore);
+                console.log("Documento Firestore adicionado com ID:", docRef.id);
+            } catch (e) {
+                console.error("Erro ao adicionar documento ao Firestore: ", e);
             }
-            const transaction = db.transaction([storeName], 'readonly');
-            const store = transaction.objectStore(storeName);
-            const request = store.getAll();
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = (e) => reject(e.target.error);
-        });
+        }
+        return indexedDbId;
     }
 
-    function getItem(storeName, id) {
-         return new Promise((resolve, reject) => {
+    async function getAllItems(storeName) {
+        // Prioriza dados do Firestore se logado, caso contrário, usa IndexedDB
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                const q = query(collection(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`));
+                const querySnapshot = await new Promise((resolve, reject) => {
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        unsubscribe(); // Desregistra após a primeira obtenção
+                        resolve(snapshot);
+                    }, (error) => {
+                        reject(error);
+                    });
+                });
+                const items = [];
+                querySnapshot.forEach((doc) => {
+                    items.push({ id: doc.id, ...doc.data() });
+                });
+                console.log(`Dados de ${storeName} obtidos do Firestore.`);
+                return items;
+            } catch (e) {
+                console.error("Erro ao obter documentos do Firestore:", e);
+                // Fallback para IndexedDB em caso de erro no Firestore
+                console.log(`Tentando obter dados de ${storeName} do IndexedDB como fallback.`);
+                return new Promise((resolve, reject) => {
+                    if (!db) {
+                        return reject("Banco de dados IndexedDB não inicializado.");
+                    }
+                    const transaction = db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            }
+        } else {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    return reject("Banco de dados IndexedDB não inicializado.");
+                }
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+    }
+
+    async function getItem(storeName, id) {
+        // Tenta obter do IndexedDB primeiro
+        let item = await new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
             const request = store.get(id);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
+
+        // Se o item não for encontrado no IndexedDB, tenta o Firestore (se logado)
+        if (!item && currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, id);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    item = { id: docSnap.id, ...docSnap.data() };
+                    console.log(`Documento ${id} de ${storeName} obtido do Firestore.`);
+                } else {
+                    console.log(`Documento ${id} de ${storeName} não encontrado no Firestore.`);
+                }
+            } catch (e) {
+                console.error("Erro ao obter documento do Firestore:", e);
+            }
+        }
+        return item;
     }
 
-    function updateItem(storeName, item) {
-        return new Promise((resolve, reject) => {
+    async function updateItem(storeName, item) {
+        // Atualiza no IndexedDB
+        await new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.put(item);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
+
+        // Atualiza no Firestore se autenticado
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, item.id);
+                // Remove o ID do objeto antes de enviar para o Firestore, pois o ID já está na referência do documento
+                const itemToUpdate = { ...item };
+                delete itemToUpdate.id;
+                await setDoc(docRef, itemToUpdate, { merge: true }); // Usa merge para não sobrescrever o documento inteiro
+                console.log("Documento Firestore atualizado com ID:", item.id);
+            } catch (e) {
+                console.error("Erro ao atualizar documento no Firestore: ", e);
+            }
+        }
     }
 
-    function deleteItem(storeName, id) {
-        return new Promise((resolve, reject) => {
+    async function deleteItem(storeName, id) {
+        // Deleta do IndexedDB
+        await new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.delete(id);
             request.onsuccess = () => resolve();
             request.onerror = (e) => reject(e.target.error);
         });
+
+        // Deleta do Firestore se autenticado
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                await deleteDoc(doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, id));
+                console.log("Documento Firestore deletado com ID:", id);
+            } catch (e) {
+                console.error("Erro ao deletar documento do Firestore: ", e);
+            }
+        }
     }
 
     // --- OPERAÇÕES DE CONFIGURAÇÃO ---
-    function getConfig(key) {
+    async function getConfig(key) {
+        // Prioriza do Firestore se logado
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/config`, key);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    return docSnap.data().value;
+                }
+            } catch (e) {
+                console.error("Erro ao obter configuração do Firestore:", e);
+            }
+        }
+        // Fallback para IndexedDB
         return new Promise((resolve) => {
             if (!db.objectStoreNames.contains('config')) {
                 return resolve(null);
@@ -140,22 +376,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const store = transaction.objectStore('config');
             const request = store.get(key);
             request.onsuccess = () => resolve(request.result ? request.result.value : null);
-            request.onerror = () => resolve(null); // Retorna nulo em caso de erro
+            request.onerror = () => resolve(null);
         });
     }
 
-    function saveConfig(key, value) {
-        return new Promise((resolve, reject) => {
+    async function saveConfig(key, value) {
+        // Salva no IndexedDB
+        await new Promise((resolve, reject) => {
             const transaction = db.transaction(['config'], 'readwrite');
             const store = transaction.objectStore('config');
             const request = store.put({ id: key, value: value });
             request.onsuccess = () => resolve();
             request.onerror = (e) => reject(e.target.error);
         });
+
+        // Salva no Firestore se autenticado
+        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
+            try {
+                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/config`, key);
+                await setDoc(docRef, { value: value }, { merge: true });
+                console.log(`Configuração ${key} salva no Firestore.`);
+            } catch (e) {
+                console.error("Erro ao salvar configuração no Firestore: ", e);
+            }
+        }
     }
 
     // --- LÓGICA DE RENDERIZAÇÃO E FORMULÁRIOS ---
-
     async function handleFormSubmit(event, storeName, formId, fieldsMap) {
         event.preventDefault();
         const form = document.getElementById(formId);
@@ -171,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await renderAll();
     }
 
-    // Configuração dos formulários
     document.getElementById('form-cobranca').addEventListener('submit', (e) => handleFormSubmit(e, 'cobrancas', 'form-cobranca', {
         cliente: 'cobranca-cliente', tipo: 'cobranca-tipo', vencimento: 'cobranca-vencimento', valor: 'cobranca-valor', pagamento: 'cobranca-pagamento'
     }));
@@ -210,8 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const diasAteVencer = getDaysUntilDue(item.vencimento || item.data);
 
         let dueDateClass = 'due-normal';
-        if (diasAteVencer <= 0) dueDateClass = 'due-urgent';
-        else if (diasAteVencer <= 5) dueDateClass = 'due-soon';
+        if (diasAteVencer < 0) dueDateClass = 'due-urgent'; // Vencido
+        else if (diasAteVencer <= 5) dueDateClass = 'due-soon'; // Vence em breve
 
         switch(storeName) {
             case 'cobrancas':
@@ -277,7 +523,9 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         card.querySelector('.btn-delete').addEventListener('click', async () => {
-            if (confirm('Tem certeza que deseja excluir este item?')) {
+            // Use custom modal for confirmation instead of confirm()
+            const confirmDelete = await showCustomConfirm('Tem certeza que deseja excluir este item?');
+            if (confirmDelete) {
                 await deleteItem(storeName, item.id);
                 await renderAll();
             }
@@ -295,26 +543,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function renderList(storeName) {
-        // CORREÇÃO APLICADA AQUI: Mapeamento direto dos nomes das lojas para os IDs dos contêineres HTML.
         let listId;
-        if (storeName === 'cobrancas') {
-            listId = 'cobranca-list';
-        } else if (storeName === 'fornecedores') {
-            listId = 'fornecedor-list';
-        } else if (storeName === 'agenda') {
-            listId = 'agenda-list';
-        } else if (storeName === 'pessoais') {
-            listId = 'pessoal-list';
-        } else {
-            console.error(`Nome de loja desconhecido para renderização: ${storeName}`);
-            return;
-        }
+        if (storeName === 'cobrancas') listId = 'cobranca-list';
+        else if (storeName === 'fornecedores') listId = 'fornecedor-list';
+        else if (storeName === 'agenda') listId = 'agenda-list';
+        else if (storeName === 'pessoais') listId = 'pessoal-list';
+        else return;
 
         const listContainer = document.getElementById(listId);
-        if (!listContainer) {
-            console.error(`Contêiner de lista com ID '${listId}' não encontrado para a loja '${storeName}'.`);
-            return;
-        }
+        if (!listContainer) return;
 
         listContainer.innerHTML = '';
         const items = await getAllItems(storeName);
@@ -326,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (items.length === 0) {
-            listContainer.innerHTML = '<p style="color: var(--on-surface-secondary); text-align: center;">Nenhum item cadastrado ainda.</p>';
+            listContainer.innerHTML = '<p class="empty-list-message">Nenhum item cadastrado ainda.</p>';
         } else {
             items.forEach(item => {
                 listContainer.appendChild(createItemCard(storeName, item));
@@ -402,18 +639,14 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         modal.classList.add('visible');
-
         document.getElementById('cancel-edit').addEventListener('click', () => modal.classList.remove('visible'));
-
         modalForm.onsubmit = async (e) => {
             e.preventDefault();
             const updatedItem = { id: item.id, status: item.status };
             fieldConfig[storeName].forEach(field => {
                 updatedItem[field.id] = document.getElementById(`edit-${field.id}`).value;
             });
-
             if(updatedItem.valor) updatedItem.valor = parseFloat(updatedItem.valor);
-
             await updateItem(storeName, updatedItem);
             modal.classList.remove('visible');
             await renderAll();
@@ -434,22 +667,17 @@ document.addEventListener('DOMContentLoaded', () => {
             this.nextBtn.addEventListener('click', () => this.changeMonth(1));
             await this.render();
         },
-
         async changeMonth(dir) {
             this.currentDate.setMonth(this.currentDate.getMonth() + dir);
             await this.render();
         },
-
         async render() {
             this.body.innerHTML = '';
             const year = this.currentDate.getFullYear();
             const month = this.currentDate.getMonth();
-
             this.monthYear.textContent = this.currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-
             const agendaItems = await getAllItems('agenda');
             const eventsByDay = {};
             agendaItems.forEach(item => {
@@ -460,7 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     eventsByDay[day].push(item);
                 }
             });
-
             const prevMonthDays = new Date(year, month, 0).getDate();
             for (let i = firstDay; i > 0; i--) {
                 const dayCell = document.createElement('div');
@@ -468,31 +695,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayCell.textContent = prevMonthDays - i + 1;
                 this.body.appendChild(dayCell);
             }
-
             for (let day = 1; day <= daysInMonth; day++) {
                 const dayCell = document.createElement('div');
                 dayCell.className = 'calendar-day';
                 dayCell.textContent = day;
-
                 const today = new Date();
                 if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
                     dayCell.classList.add('today');
                 }
-
                 if (eventsByDay[day]) {
                     const dot = document.createElement('div');
                     dot.className = 'event-dot';
                     dayCell.appendChild(dot);
                 }
-
                 dayCell.addEventListener('click', () => this.showEventsForDay(day, eventsByDay[day]));
                 this.body.appendChild(dayCell);
             }
-
-            // Garante que os eventos do dia atual sejam mostrados na inicialização
-            this.showEventsForDay(new Date().getDate(), eventsByDay[new Date().getDate()]);
+            const today = new Date();
+            if (month === today.getMonth() && year === today.getFullYear()) {
+                 this.showEventsForDay(today.getDate(), eventsByDay[today.getDate()]);
+            } else {
+                 this.showEventsForDay(null, null);
+            }
         },
-
         showEventsForDay(day, events) {
             this.list.innerHTML = '';
             if (events && events.length > 0) {
@@ -501,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.list.appendChild(createItemCard('agenda', item));
                 });
             } else {
-                this.list.innerHTML = `<p style="color: var(--on-surface-secondary); text-align: center;">Nenhum compromisso para este dia.</p>`;
+                this.list.innerHTML = `<p class="empty-list-message">Nenhum compromisso para este dia.</p>`;
             }
         }
     };
@@ -514,98 +739,39 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (storeName === 'fornecedores') selectId = 'fornecedor-notif-days';
             else if (storeName === 'agenda') selectId = 'agenda-notif-days';
             else if (storeName === 'pessoais') selectId = 'pessoal-notif-days';
-            else continue; // Pula se o nome da loja não for reconhecido
+            else continue; 
 
             const select = document.getElementById(selectId);
-            if (!select) {
-                console.warn(`Elemento de seleção de notificação não encontrado para: ${selectId}`);
-                continue;
-            }
+            if (!select) continue;
 
             const configKey = `${storeName}_notif_days`;
             const savedValue = await getConfig(configKey);
-
-            if (savedValue) {
-                select.value = savedValue;
-            }
-
+            if (savedValue) select.value = savedValue;
+            
             select.addEventListener('change', async (e) => {
                 await saveConfig(configKey, e.target.value);
-                await checkNotifications(); // Re-checa as notificações ao mudar a configuração
+                console.log(`Configuração de notificação salva. A mudança terá efeito na próxima verificação em segundo plano.`);
             });
         }
     }
 
-    async function checkNotifications() {
-        if (!('Notification' in window)) {
-            console.warn('Este navegador não suporta notificações.');
-            return;
-        }
-
-        if (Notification.permission === 'denied') {
-            console.log('Permissão para notificações negada. Não será possível exibir alertas.');
-            return;
-        } else if (Notification.permission !== 'granted') {
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                console.log('Permissão para notificações não concedida. Alertas não serão exibidos.');
-                return;
-            }
-        }
-
+    // REPARO: Esta função agora cuida apenas dos badges visuais.
+    async function updateVisualBadges() {
         let totalAppBadgeCount = 0;
-        const storeConfig = {
-            cobrancas: {
-                badgeId: 'cobranca-badge',
-                title: 'Cobrança Próxima!',
-                getMessage: (item) => `A cobrança de ${item.cliente} no valor de ${item.valor ? `R$ ${item.valor.toFixed(2)}` : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-            },
-            fornecedores: {
-                badgeId: 'fornecedor-badge',
-                title: 'Pagamento de Fornecedor Próximo!',
-                getMessage: (item) => `O pagamento para ${item.nome} no valor de ${item.valor ? `R$ ${item.valor.toFixed(2)}` : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-            },
-            agenda: {
-                badgeId: 'agenda-badge',
-                title: 'Novo Compromisso!',
-                getMessage: (item) => `Você tem um compromisso com ${item.cliente} sobre ${item.compromisso} em ${formatDate(item.data)} às ${item.horario}.`
-            },
-            pessoais: {
-                badgeId: 'pessoal-badge',
-                title: 'Despesa Pessoal Próxima!',
-                getMessage: (item) => `A despesa de ${item.conta} no valor de ${item.valor ? `R$ ${item.valor.toFixed(2)}` : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-            },
+        const badgeConfig = {
+            cobrancas: 'cobranca-badge',
+            fornecedores: 'fornecedor-badge',
+            agenda: 'agenda-badge',
+            pessoais: 'pessoal-badge',
         };
 
-        for (const storeName in storeConfig) {
+        for (const storeName in badgeConfig) {
             const items = await getAllItems(storeName);
-            const config = storeConfig[storeName];
-            const alertDays = parseInt(await getConfig(`${storeName}_notif_days`) || 5);
-            let pendingCount = 0;
+            
+            // REPARO: Conta todos os itens pendentes, não apenas os que estão perto de vencer.
+            const pendingCount = items.filter(item => item.status === 'pendente').length;
 
-            items.forEach(item => {
-                if (item.status === 'pendente') {
-                    const daysDue = getDaysUntilDue(item.vencimento || item.data);
-
-                    if (daysDue <= alertDays && daysDue >= 0) { // Alerta se estiver vencendo ou já venceu dentro do período
-                        pendingCount++;
-
-                        // NOVO: Dispara notificação se ainda não foi notificado nesta sessão
-                        if (!notifiedItems[storeName]) notifiedItems[storeName] = {};
-                        if (!notifiedItems[storeName][item.id]) {
-                            const notificationMessage = config.getMessage(item);
-                            new Notification(config.title, {
-                                body: notificationMessage,
-                                icon: 'images/icons/icon-192x192.png', // Caminho para o ícone do seu PWA
-                                tag: `${storeName}-${item.id}` // Ajuda a agrupar notificações
-                            });
-                            notifiedItems[storeName][item.id] = true; // Marca como notificado
-                        }
-                    }
-                }
-            });
-
-            const badge = document.getElementById(config.badgeId);
+            const badge = document.getElementById(badgeConfig[storeName]);
             if (badge) {
                 if (pendingCount > 0) {
                     badge.textContent = pendingCount;
@@ -618,12 +784,37 @@ document.addEventListener('DOMContentLoaded', () => {
             totalAppBadgeCount += pendingCount;
         }
 
-        if ('setAppBadge' in navigator) {
+        if ('setAppBadge' in navigator && 'clearAppBadge' in navigator) {
             if (totalAppBadgeCount > 0) {
-                navigator.setAppBadge(totalAppBadgeCount);
+                await navigator.setAppBadge(totalAppBadgeCount);
             } else {
-                navigator.clearAppBadge();
+                await navigator.clearAppBadge();
             }
+        }
+    }
+    
+    // NOVO: Função para registrar a verificação periódica em segundo plano.
+    async function registerPeriodicSync() {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            // Verifica se o navegador suporta a API de Sincronização Periódica.
+            if ('periodicSync' in registration) {
+                // Pede permissão ao usuário.
+                const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+                if (status.state === 'granted') {
+                    // Registra a tarefa para ocorrer no mínimo a cada 12 horas.
+                    await registration.periodicSync.register('check-due-dates', {
+                        minInterval: 12 * 60 * 60 * 1000, 
+                    });
+                    console.log('Sincronização periódica de notificações registrada.');
+                } else {
+                    console.log('Permissão para sincronização periódica não concedida.');
+                }
+            } else {
+                console.warn('Sincronização periódica de fundo não é suportada neste navegador.');
+            }
+        } catch (error) {
+            console.error('Falha ao registrar sincronização periódica:', error);
         }
     }
 
@@ -631,15 +822,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateListPdf(storeName) {
         const items = await getAllItems(storeName);
         if (items.length === 0) {
-            alert('Não há itens para gerar um relatório.');
+            await showCustomAlert('Não há itens para gerar um relatório.');
             return;
         }
-
         const doc = new jsPDF();
         let title = '';
         let head = [];
         const body = [];
-
         const titleMap = {
             cobrancas: 'Relatório de Cobranças',
             fornecedores: 'Relatório de Fornecedores',
@@ -647,15 +836,14 @@ document.addEventListener('DOMContentLoaded', () => {
             pessoais: 'Relatório de Despesas Pessoais'
         };
         title = titleMap[storeName];
-
         switch(storeName) {
             case 'cobrancas':
                 head = [['Cliente', 'Vencimento', 'Valor', 'Status']];
-                items.forEach(i => body.push([i.cliente, formatDate(i.vencimento), `R$ ${i.valor.toFixed(2)}`, i.status]));
+                items.forEach(i => body.push([i.cliente, formatDate(i.vencimento), `R$ ${i.valor ? i.valor.toFixed(2) : '0.00'}`, i.status]));
                 break;
             case 'fornecedores':
                 head = [['Fornecedor', 'Vencimento', 'Valor', 'Status']];
-                items.forEach(i => body.push([i.nome, formatDate(i.vencimento), `R$ ${i.valor.toFixed(2)}`, i.status]));
+                items.forEach(i => body.push([i.nome, formatDate(i.vencimento), `R$ ${i.valor ? i.valor.toFixed(2) : '0.00'}`, i.status]));
                 break;
             case 'agenda':
                 head = [['Cliente', 'Data', 'Horário', 'Compromisso', 'Status']];
@@ -663,28 +851,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'pessoais':
                 head = [['Conta', 'Vencimento', 'Valor', 'Status']];
-                items.forEach(i => body.push([i.conta, formatDate(i.vencimento), `R$ ${i.valor.toFixed(2)}`, i.status]));
+                items.forEach(i => body.push([i.conta, formatDate(i.vencimento), `R$ ${i.valor ? i.valor.toFixed(2) : '0.00'}`, i.status]));
                 break;
         }
-
         doc.setFontSize(18);
         doc.text(title, 14, 22);
-        doc.autoTable({
-            startY: 30,
-            head: head,
-            body: body,
-            theme: 'grid',
-            headStyles: { fillColor: [41, 128, 185] }
-        });
+        doc.autoTable({ startY: 30, head: head, body: body, theme: 'grid', headStyles: { fillColor: [41, 128, 185] } });
         doc.save(`relatorio_${storeName}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
     }
 
-    // Adiciona listeners para os botões de relatório PDF
     document.getElementById('pdf-cobranca').addEventListener('click', () => generateListPdf('cobrancas'));
     document.getElementById('pdf-fornecedor').addEventListener('click', () => generateListPdf('fornecedores'));
     document.getElementById('pdf-agenda').addEventListener('click', () => generateListPdf('agenda'));
     document.getElementById('pdf-pessoal').addEventListener('click', () => generateListPdf('pessoais'));
-
 
     // --- BACKUP E RESTAURAÇÃO ---
     const exportBtn = document.getElementById('export-btn');
@@ -707,16 +886,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     importBtn.addEventListener('click', () => importFile.click());
-
     importFile.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                if(confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) {
+                const confirmImport = await showCustomConfirm('Isso substituirá todos os dados atuais. Deseja continuar?');
+                if (confirmImport) {
                     for (const storeName of STORES) {
                         const transaction = db.transaction([storeName], 'readwrite');
                         const store = transaction.objectStore(storeName);
@@ -731,11 +909,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     }
-                    alert('Dados importados com sucesso! O aplicativo será recarregado.');
+                    await showCustomAlert('Dados importados com sucesso! O aplicativo será recarregado.');
                     window.location.reload();
                 }
             } catch (error) {
-                alert('Erro ao importar o arquivo. Verifique se o formato é válido.');
+                await showCustomAlert('Erro ao importar o arquivo. Verifique se o formato é válido.');
                 console.error('Erro na importação:', error);
             }
         };
@@ -743,22 +921,81 @@ document.addEventListener('DOMContentLoaded', () => {
         importFile.value = '';
     });
 
+    // --- FUNÇÕES DE ALERTA E CONFIRMAÇÃO PERSONALIZADAS ---
+    // Em vez de alert(), use um modal ou div para exibir mensagens
+    async function showCustomAlert(message) {
+        return new Promise(resolve => {
+            const modalHtml = `
+                <div class="modal-overlay visible" id="custom-alert-modal">
+                    <div class="modal-content">
+                        <h2 id="modal-title">Aviso</h2>
+                        <p style="text-align: center; margin-bottom: 1.5rem;">${message}</p>
+                        <button class="btn btn-primary" id="custom-alert-ok" style="width: 100%;">OK</button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('custom-alert-ok').addEventListener('click', () => {
+                document.getElementById('custom-alert-modal').remove();
+                resolve();
+            });
+        });
+    }
+
+    // Em vez de confirm(), use um modal com botões de Sim/Não
+    async function showCustomConfirm(message) {
+        return new Promise(resolve => {
+            const modalHtml = `
+                <div class="modal-overlay visible" id="custom-confirm-modal">
+                    <div class="modal-content">
+                        <h2 id="modal-title">Confirmação</h2>
+                        <p style="text-align: center; margin-bottom: 1.5rem;">${message}</p>
+                        <div style="display: flex; gap: 1rem; justify-content: center;">
+                            <button class="btn btn-primary" id="custom-confirm-yes">Sim</button>
+                            <button class="btn btn-danger" id="custom-confirm-no">Não</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            document.getElementById('custom-confirm-yes').addEventListener('click', () => {
+                document.getElementById('custom-confirm-modal').remove();
+                resolve(true);
+            });
+            document.getElementById('custom-confirm-no').addEventListener('click', () => {
+                document.getElementById('custom-confirm-modal').remove();
+                resolve(false);
+            });
+        });
+    }
+
+
     // --- FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ---
     async function renderAll() {
         for (const storeName of STORES) {
             await renderList(storeName);
         }
-        await calendar.render(); // Re-renderiza o calendário e a lista de agenda associada
-        await checkNotifications();
+        await calendar.render();
+        await updateVisualBadges(); // REPARO: Chamada para a função de badges corrigida.
     }
 
     // --- INICIALIZAÇÃO DO APP ---
     async function main() {
         await initDB();
+        await initFirebase(); // Inicializa o Firebase
         await setupNotificationSettings();
         await calendar.init();
         await renderAll();
+        // NOVO: Pede permissão para notificações e registra a verificação em segundo plano.
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await registerPeriodicSync();
+        } else {
+            console.log('Permissão para notificações não concedida. Alertas não serão exibidos.');
+        }
     }
 
     main();
 });
+

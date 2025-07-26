@@ -1,4 +1,6 @@
 // sw.js
+
+// --- LÓGICA DE CACHE (EXISTENTE) ---
 const CACHE_NAME = 'financeiro-pwa-cache-v1';
 const urlsToCache = [
     '/',
@@ -6,7 +8,7 @@ const urlsToCache = [
     '/style.css',
     '/script.js',
     '/manifest.json',
-    '/images/icons/icon-192x192.png', // Certifique-se de que este caminho está correto
+    '/images/icons/icon-192x192.png',
     'https://unpkg.com/@phosphor-icons/web',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js'
@@ -16,7 +18,7 @@ self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('Cache aberto');
+                console.log('[SW] Cache aberto');
                 return cache.addAll(urlsToCache);
             })
     );
@@ -26,10 +28,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
             .then(response => {
-                if (response) {
-                    return response;
-                }
-                return fetch(event.request);
+                return response || fetch(event.request);
             })
     );
 });
@@ -49,22 +48,140 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Lógica para lidar com cliques em notificações
-self.addEventListener('notificationclick', event => {
-    event.notification.close(); // Fecha a notificação ao clicar
+// --- LÓGICA DE NOTIFICAÇÕES (REPARADA E CENTRALIZADA AQUI) ---
 
-    // Abre a aplicação ou uma URL específica
+// Constantes do Banco de Dados (devem ser as mesmas do script.js)
+const DB_NAME = 'FinanceiroPWA_DB';
+const DB_VERSION = 3;
+const STORES = ['cobrancas', 'fornecedores', 'agenda', 'pessoais'];
+let db;
+
+// Funções auxiliares para acessar o IndexedDB de dentro do Service Worker
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onsuccess = event => {
+            db = event.target.result;
+            resolve(db);
+        };
+        request.onerror = event => {
+            console.error('[SW] Erro ao abrir o banco de dados:', event.target.error);
+            reject(event.target.error);
+        };
+    });
+}
+
+function getAllItems(storeName) {
+    return new Promise((resolve, reject) => {
+        if (!db) return reject("[SW] Banco de dados não inicializado.");
+        const transaction = db.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+function getConfig(key) {
+    return new Promise((resolve) => {
+        if (!db || !db.objectStoreNames.contains('config')) return resolve(null);
+        const transaction = db.transaction(['config'], 'readonly');
+        const store = transaction.objectStore('config');
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result ? request.result.value : null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString + 'T00:00:00-03:00');
+    return date.toLocaleDateString('pt-BR');
+}
+
+function getDaysUntilDue(dateString) {
+    if (!dateString) return Infinity;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(dateString + 'T00:00:00-03:00');
+    const diffTime = dueDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// Função principal que verifica e envia as notificações
+async function checkAndSendNotifications() {
+    console.log('[SW] Verificando compromissos para notificação...');
+    await initDB();
+
+    const storeConfig = {
+        cobrancas: {
+            title: 'Cobrança Próxima!',
+            getMessage: (item) => `A cobrança de ${item.cliente} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+        },
+        fornecedores: {
+            title: 'Pagamento de Fornecedor Próximo!',
+            getMessage: (item) => `O pagamento para ${item.nome} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+        },
+        agenda: {
+            title: 'Compromisso Próximo!',
+            getMessage: (item) => `Você tem um compromisso com ${item.cliente} em ${formatDate(item.data)} às ${item.horario}.`
+        },
+        pessoais: {
+            title: 'Despesa Pessoal Próxima!',
+            getMessage: (item) => `A despesa de ${item.conta} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+        },
+    };
+
+    for (const storeName in storeConfig) {
+        const items = await getAllItems(storeName);
+        const config = storeConfig[storeName];
+        // Busca a configuração de dias do usuário ou usa 5 como padrão.
+        const alertDays = parseInt(await getConfig(`${storeName}_notif_days`) || 5);
+
+        for (const item of items) {
+            if (item.status === 'pendente') {
+                const daysDue = getDaysUntilDue(item.vencimento || item.data);
+
+                // Se o item vence dentro do prazo configurado (e não está vencido há muito tempo)
+                if (daysDue <= alertDays && daysDue >= -1) { // Notifica até 1 dia depois de vencer
+                    const notificationMessage = config.getMessage(item);
+                    
+                    // Usa a API correta para mostrar notificação a partir do Service Worker
+                    await self.registration.showNotification(config.title, {
+                        body: notificationMessage,
+                        icon: '/images/icons/icon-192x192.png',
+                        tag: `${storeName}-${item.id}` // Agrupa notificações para o mesmo item
+                    });
+                }
+            }
+        }
+    }
+    db.close(); // Fecha a conexão com o banco após o uso
+}
+
+// Listener para a Sincronização Periódica em Segundo Plano
+self.addEventListener('periodicsync', event => {
+    if (event.tag === 'check-due-dates') {
+        console.log('[SW] Sincronização periódica acionada.');
+        event.waitUntil(checkAndSendNotifications());
+    }
+});
+
+// Listener para cliques na notificação (EXISTENTE E CORRETO)
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
     event.waitUntil(
         clients.matchAll({ type: 'window' }).then(clientList => {
             for (let i = 0; i < clientList.length; i++) {
                 let client = clientList[i];
                 if (client.url.includes(self.location.origin) && 'focus' in client) {
-                    return client.focus(); // Se a aba já está aberta, foca nela
+                    return client.focus();
                 }
             }
             if (clients.openWindow) {
-                return clients.openWindow('/'); // Abre a URL raiz da sua PWA
+                return clients.openWindow('/');
             }
         })
     );
 });
+
