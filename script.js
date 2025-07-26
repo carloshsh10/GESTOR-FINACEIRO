@@ -8,7 +8,6 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Script: DOMContentLoaded event fired.');
 
     // --- CONSTANTES E VARIÁVEIS GLOBAIS ---
     const views = document.querySelectorAll('.view');
@@ -16,163 +15,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeBtns = document.querySelectorAll('.home-btn');
     const { jsPDF } = window.jspdf;
 
-    console.log(`Script: Found ${views.length} views.`);
-    console.log(`Script: Found ${navCards.length} navigation cards.`);
-    console.log(`Script: Found ${homeBtns.length} home buttons.`);
-
-    let db; // Variável para a instância do banco de dados IndexedDB
+    let db; // Variável para a instância do banco de dados
     let currentEdit = { store: null, id: null }; // Para controlar o item em edição
     
     const STORES = ['cobrancas', 'fornecedores', 'agenda', 'pessoais'];
 
-    // --- ELEMENTOS DO FIREBASE STATUS E AUTENTICAÇÃO ---
-    const firebaseStatusText = document.getElementById('status-text');
-    const firebaseAuthBtn = document.getElementById('firebase-auth-btn');
-
-    // --- FIREBASE CONFIGURAÇÃO E INICIALIZAÇÃO ---
-    // Variáveis globais fornecidas pelo ambiente Canvas
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-        apiKey: "AIzaSyAZE9ihM7rtIWCEzoC4LB-0uNt17o46V_c",
-        authDomain: "pwa-gestor-gh.firebaseapp.com",
-        projectId: "pwa-gestor-gh",
-        storageBucket: "pwa-gestor-gh.firebasestorage.app",
-        messagingSenderId: "900735167399",
-        appId: "1:900735167399:web:749618270b63477fdf2482",
-        measurementId: "G-6XZ2PQTHF7"
-    };
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    // Importações do Firebase SDK
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-    import { getAuth, signInAnonymously, signInWithCustomToken, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, collection, query, onSnapshot, deleteDoc, addDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-
-    let firebaseApp;
-    let firebaseAuth;
-    let firestoreDb;
-    let currentFirebaseUser = null;
-    let firebaseUserId = null; // Para armazenar o UID do usuário logado ou um ID anônimo
-
-    // Função para atualizar o status da conexão Firebase na UI
-    function updateFirebaseStatus(isConnected) {
-        if (isConnected) {
-            firebaseStatusText.textContent = 'Conectado';
-            firebaseStatusText.style.color = 'var(--primary)'; // Verde
-        } else {
-            firebaseStatusText.textContent = 'Desconectado';
-            firebaseStatusText.style.color = 'var(--error)'; // Vermelho
-        }
-    }
-
-    // Função para atualizar o botão de login/logout
-    function updateFirebaseAuthButton() {
-        if (currentFirebaseUser) {
-            firebaseAuthBtn.textContent = 'Deslogar do Firebase';
-            firebaseAuthBtn.classList.remove('btn-danger');
-            firebaseAuthBtn.classList.add('btn-primary');
-        } else {
-            firebaseAuthBtn.textContent = 'Logar no Firebase';
-            firebaseAuthBtn.classList.remove('btn-primary');
-            firebaseAuthBtn.classList.add('btn-danger');
-        }
-    }
-
-    // Inicialização do Firebase
-    async function initFirebase() {
-        try {
-            firebaseApp = initializeApp(firebaseConfig);
-            firebaseAuth = getAuth(firebaseApp);
-            firestoreDb = getFirestore(firebaseApp);
-
-            // Listener para mudanças no estado de autenticação
-            onAuthStateChanged(firebaseAuth, async (user) => {
-                currentFirebaseUser = user;
-                if (user) {
-                    firebaseUserId = user.uid;
-                    updateFirebaseStatus(true);
-                    console.log('Firebase: Usuário autenticado:', user.uid);
-                } else {
-                    // Se não houver usuário logado, tenta logar anonimamente
-                    console.log('Firebase: Usuário deslogado. Tentando login anônimo...');
-                    await signInAnonymously(firebaseAuth);
-                    firebaseUserId = firebaseAuth.currentUser?.uid || crypto.randomUUID(); // Fallback para ID anônimo
-                    updateFirebaseStatus(true); // Ainda conectado, mas anonimamente
-                    console.log('Firebase: Logado anonimamente com ID:', firebaseUserId);
-                }
-                updateFirebaseAuthButton();
-            });
-
-            // Tenta fazer login com o token inicial se disponível
-            if (initialAuthToken) {
-                await signInWithCustomToken(firebaseAuth, initialAuthToken);
-                console.log('Firebase: Login com token personalizado bem-sucedido.');
-            } else {
-                // Se não houver token, tenta login anônimo imediatamente
-                await signInAnonymously(firebaseAuth);
-                console.log('Firebase: Login anônimo inicial bem-sucedido.');
-            }
-            
-        } catch (error) {
-            console.error('Erro ao inicializar Firebase:', error);
-            updateFirebaseStatus(false);
-            updateFirebaseAuthButton();
-        }
-    }
-
-    // Lógica do botão de login/logout
-    firebaseAuthBtn.addEventListener('click', async () => {
-        if (currentFirebaseUser) {
-            // Se logado, desloga
-            try {
-                await signOut(firebaseAuth);
-                console.log('Firebase: Usuário deslogado.');
-                // onAuthStateChanged cuidará do login anônimo após o logout
-            } catch (error) {
-                console.error('Erro ao deslogar:', error);
-            }
-        } else {
-            // Se deslogado, tenta logar anonimamente (ou você pode adicionar um fluxo de login com credenciais aqui)
-            try {
-                await signInAnonymously(firebaseAuth);
-                console.log('Firebase: Tentando login anônimo...');
-            } catch (error) {
-                console.error('Erro ao tentar login anônimo:', error);
-            }
-        }
-    });
-
     // --- NAVEGAÇÃO ENTRE TELAS (VIEWS) ---
     function switchView(viewId) {
-        console.log(`Script: Switching to view: ${viewId}`); // Debug log
         views.forEach(view => {
             view.classList.remove('active');
         });
         const activeView = document.getElementById(viewId);
         if (activeView) {
             activeView.classList.add('active');
-            console.log(`Script: View ${viewId} is now active.`); // Debug log
-        } else {
-            console.warn(`Script: View with ID ${viewId} not found.`); // Debug log
         }
     }
 
     navCards.forEach(card => {
-        card.addEventListener('click', (event) => {
+        card.addEventListener('click', () => {
             const viewId = card.getAttribute('data-view');
-            console.log(`Script: Nav Card clicked! Target view: ${viewId}`); // Debug log
             if (viewId) switchView(viewId);
         });
-        console.log(`Script: Listener attached to nav card with data-view: ${card.getAttribute('data-view')}`); // Debug log
     });
 
     homeBtns.forEach(btn => {
-        btn.addEventListener('click', (event) => {
+        btn.addEventListener('click', () => {
             const viewId = btn.getAttribute('data-view');
-            console.log(`Script: Home Button clicked! Target view: ${viewId}`); // Debug log
             if (viewId) switchView(viewId);
         });
-        console.log(`Script: Listener attached to home button with data-view: ${btn.getAttribute('data-view')}`); // Debug log
     });
 
     // --- BANCO DE DADOS (INDEXEDDB) ---
@@ -194,180 +64,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
             request.onsuccess = event => {
                 db = event.target.result;
-                console.log('Banco de dados IndexedDB aberto com sucesso.');
+                console.log('Banco de dados aberto com sucesso.');
                 resolve(db);
             };
 
             request.onerror = event => {
-                console.error('Erro ao abrir o banco de dados IndexedDB:', event.target.error);
+                console.error('Erro ao abrir o banco de dados:', event.target.error);
                 reject(event.target.error);
             };
         });
     }
 
-    // --- OPERAÇÕES CRUD NO BANCO DE DADOS (INDEXEDDB e Firestore) ---
-    async function addItem(storeName, item) {
-        // Adiciona ao IndexedDB
-        let indexedDbId = await new Promise((resolve, reject) => {
+    // --- OPERAÇÕES CRUD NO BANCO DE DADOS ---
+    function addItem(storeName, item) {
+        return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.add(item);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
-
-        // Adiciona ao Firestore se autenticado
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                // Remove o ID do IndexedDB para que o Firestore gere o seu próprio
-                const itemToFirestore = { ...item };
-                delete itemToFirestore.id; 
-                const docRef = await addDoc(collection(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`), itemToFirestore);
-                console.log("Documento Firestore adicionado com ID:", docRef.id);
-            } catch (e) {
-                console.error("Erro ao adicionar documento ao Firestore: ", e);
-            }
-        }
-        return indexedDbId;
     }
 
-    async function getAllItems(storeName) {
-        // Prioriza dados do Firestore se logado, caso contrário, usa IndexedDB
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                const q = query(collection(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`));
-                const querySnapshot = await new Promise((resolve, reject) => {
-                    const unsubscribe = onSnapshot(q, (snapshot) => {
-                        unsubscribe(); // Desregistra após a primeira obtenção
-                        resolve(snapshot);
-                    }, (error) => {
-                        reject(error);
-                    });
-                });
-                const items = [];
-                querySnapshot.forEach((doc) => {
-                    items.push({ id: doc.id, ...doc.data() });
-                });
-                console.log(`Dados de ${storeName} obtidos do Firestore.`);
-                return items;
-            } catch (e) {
-                console.error("Erro ao obter documentos do Firestore:", e);
-                // Fallback para IndexedDB em caso de erro no Firestore
-                console.log(`Tentando obter dados de ${storeName} do IndexedDB como fallback.`);
-                return new Promise((resolve, reject) => {
-                    if (!db) {
-                        return reject("Banco de dados IndexedDB não inicializado.");
-                    }
-                    const transaction = db.transaction([storeName], 'readonly');
-                    const store = transaction.objectStore(storeName);
-                    const request = store.getAll();
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = (e) => reject(e.target.error);
-                });
+    function getAllItems(storeName) {
+        return new Promise((resolve, reject) => {
+            if (!db) {
+                return reject("Banco de dados não inicializado.");
             }
-        } else {
-            return new Promise((resolve, reject) => {
-                if (!db) {
-                    return reject("Banco de dados IndexedDB não inicializado.");
-                }
-                const transaction = db.transaction([storeName], 'readonly');
-                const store = transaction.objectStore(storeName);
-                const request = store.getAll();
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = (e) => reject(e.target.error);
-            });
-        }
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
     }
 
-    async function getItem(storeName, id) {
-        // Tenta obter do IndexedDB primeiro
-        let item = await new Promise((resolve, reject) => {
+    function getItem(storeName, id) {
+         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
             const request = store.get(id);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
-
-        // Se o item não for encontrado no IndexedDB, tenta o Firestore (se logado)
-        if (!item && currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, id);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    item = { id: docSnap.id, ...docSnap.data() };
-                    console.log(`Documento ${id} de ${storeName} obtido do Firestore.`);
-                } else {
-                    console.log(`Documento ${id} de ${storeName} não encontrado no Firestore.`);
-                }
-            } catch (e) {
-                console.error("Erro ao obter documento do Firestore:", e);
-            }
-        }
-        return item;
     }
 
-    async function updateItem(storeName, item) {
-        // Atualiza no IndexedDB
-        await new Promise((resolve, reject) => {
+    function updateItem(storeName, item) {
+        return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.put(item);
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
         });
-
-        // Atualiza no Firestore se autenticado
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, item.id);
-                // Remove o ID do objeto antes de enviar para o Firestore, pois o ID já está na referência do documento
-                const itemToUpdate = { ...item };
-                delete itemToUpdate.id;
-                await setDoc(docRef, itemToUpdate, { merge: true }); // Usa merge para não sobrescrever o documento inteiro
-                console.log("Documento Firestore atualizado com ID:", item.id);
-            } catch (e) {
-                console.error("Erro ao atualizar documento no Firestore: ", e);
-            }
-        }
     }
 
-    async function deleteItem(storeName, id) {
-        // Deleta do IndexedDB
-        await new Promise((resolve, reject) => {
+    function deleteItem(storeName, id) {
+        return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.delete(id);
             request.onsuccess = () => resolve();
             request.onerror = (e) => reject(e.target.error);
         });
-
-        // Deleta do Firestore se autenticado
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                await deleteDoc(doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/${storeName}`, id));
-                console.log("Documento Firestore deletado com ID:", id);
-            } catch (e) {
-                console.error("Erro ao deletar documento do Firestore: ", e);
-            }
-        }
     }
 
     // --- OPERAÇÕES DE CONFIGURAÇÃO ---
-    async function getConfig(key) {
-        // Prioriza do Firestore se logado
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/config`, key);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    return docSnap.data().value;
-                }
-            } catch (e) {
-                console.error("Erro ao obter configuração do Firestore:", e);
-            }
-        }
-        // Fallback para IndexedDB
+    function getConfig(key) {
         return new Promise((resolve) => {
             if (!db.objectStoreNames.contains('config')) {
                 return resolve(null);
@@ -380,26 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function saveConfig(key, value) {
-        // Salva no IndexedDB
-        await new Promise((resolve, reject) => {
+    function saveConfig(key, value) {
+        return new Promise((resolve, reject) => {
             const transaction = db.transaction(['config'], 'readwrite');
             const store = transaction.objectStore('config');
             const request = store.put({ id: key, value: value });
             request.onsuccess = () => resolve();
             request.onerror = (e) => reject(e.target.error);
         });
-
-        // Salva no Firestore se autenticado
-        if (currentFirebaseUser && firestoreDb && firebaseUserId) {
-            try {
-                const docRef = doc(firestoreDb, `artifacts/${appId}/users/${firebaseUserId}/config`, key);
-                await setDoc(docRef, { value: value }, { merge: true });
-                console.log(`Configuração ${key} salva no Firestore.`);
-            } catch (e) {
-                console.error("Erro ao salvar configuração no Firestore: ", e);
-            }
-        }
     }
 
     // --- LÓGICA DE RENDERIZAÇÃO E FORMULÁRIOS ---
@@ -524,8 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         card.querySelector('.btn-delete').addEventListener('click', async () => {
             // Use custom modal for confirmation instead of confirm()
-            const confirmDelete = await showCustomConfirm('Tem certeza que deseja excluir este item?');
-            if (confirmDelete) {
+            if (window.confirm('Tem certeza que deseja excluir este item?')) {
                 await deleteItem(storeName, item.id);
                 await renderAll();
             }
@@ -822,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateListPdf(storeName) {
         const items = await getAllItems(storeName);
         if (items.length === 0) {
-            await showCustomAlert('Não há itens para gerar um relatório.');
+            alert('Não há itens para gerar um relatório.');
             return;
         }
         const doc = new jsPDF();
@@ -893,8 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                const confirmImport = await showCustomConfirm('Isso substituirá todos os dados atuais. Deseja continuar?');
-                if (confirmImport) {
+                if (window.confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) {
                     for (const storeName of STORES) {
                         const transaction = db.transaction([storeName], 'readwrite');
                         const store = transaction.objectStore(storeName);
@@ -909,67 +658,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     }
-                    await showCustomAlert('Dados importados com sucesso! O aplicativo será recarregado.');
+                    alert('Dados importados com sucesso! O aplicativo será recarregado.');
                     window.location.reload();
                 }
             } catch (error) {
-                await showCustomAlert('Erro ao importar o arquivo. Verifique se o formato é válido.');
+                alert('Erro ao importar o arquivo. Verifique se o formato é válido.');
                 console.error('Erro na importação:', error);
             }
         };
         reader.readAsText(file);
         importFile.value = '';
     });
-
-    // --- FUNÇÕES DE ALERTA E CONFIRMAÇÃO PERSONALIZADAS ---
-    // Em vez de alert(), use um modal ou div para exibir mensagens
-    async function showCustomAlert(message) {
-        return new Promise(resolve => {
-            const modalHtml = `
-                <div class="modal-overlay visible" id="custom-alert-modal">
-                    <div class="modal-content">
-                        <h2 id="modal-title">Aviso</h2>
-                        <p style="text-align: center; margin-bottom: 1.5rem;">${message}</p>
-                        <button class="btn btn-primary" id="custom-alert-ok" style="width: 100%;">OK</button>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            document.getElementById('custom-alert-ok').addEventListener('click', () => {
-                document.getElementById('custom-alert-modal').remove();
-                resolve();
-            });
-        });
-    }
-
-    // Em vez de confirm(), use um modal com botões de Sim/Não
-    async function showCustomConfirm(message) {
-        return new Promise(resolve => {
-            const modalHtml = `
-                <div class="modal-overlay visible" id="custom-confirm-modal">
-                    <div class="modal-content">
-                        <h2 id="modal-title">Confirmação</h2>
-                        <p style="text-align: center; margin-bottom: 1.5rem;">${message}</p>
-                        <div style="display: flex; gap: 1rem; justify-content: center;">
-                            <button class="btn btn-primary" id="custom-confirm-yes">Sim</button>
-                            <button class="btn btn-danger" id="custom-confirm-no">Não</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-            document.getElementById('custom-confirm-yes').addEventListener('click', () => {
-                document.getElementById('custom-confirm-modal').remove();
-                resolve(true);
-            });
-            document.getElementById('custom-confirm-no').addEventListener('click', () => {
-                document.getElementById('custom-confirm-modal').remove();
-                resolve(false);
-            });
-        });
-    }
-
 
     // --- FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ---
     async function renderAll() {
@@ -983,7 +682,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INICIALIZAÇÃO DO APP ---
     async function main() {
         await initDB();
-        await initFirebase(); // Inicializa o Firebase
         await setupNotificationSettings();
         await calendar.init();
         await renderAll();

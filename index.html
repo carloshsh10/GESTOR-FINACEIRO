@@ -25,10 +25,6 @@
         <section id="home-view" class="view active">
             <header>
                 <h1>Gestor Inteligente</h1>
-                <!-- Status de Conexão do Firebase -->
-                <div id="firebase-status" style="font-size: 0.9rem; margin-top: 0.5rem; text-align: center;">
-                    Status Firebase: <span id="status-text" style="font-weight: bold;">Desconectado</span>
-                </div>
             </header>
             <main class="nav-grid">
                 <div class="nav-card" data-view="cobranca-view">
@@ -283,10 +279,6 @@
                     <button id="import-btn" class="btn btn-secondary"><i class="ph ph-upload-simple"></i> Importar Dados</button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
-                <!-- Botão de Login/Logout do Firebase -->
-                <div style="margin-top: 2rem; text-align: center;">
-                    <button id="firebase-auth-btn" class="btn" style="width: 100%; max-width: 300px; margin: 0 auto;"></button>
-                </div>
             </div>
         </section>
     </div>
@@ -304,7 +296,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     
     <!-- Link para o arquivo de Script (JavaScript) -->
-    <script type="module" src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
 
