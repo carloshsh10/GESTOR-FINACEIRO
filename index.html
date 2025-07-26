@@ -17,6 +17,35 @@
 
     <!-- Ícones (Phosphor Icons) -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js"; // Analytics is not used in this context, so commenting out
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZE9ihM7rtIWCEzoC4LB-0uNt17o46V_c",
+            authDomain: "pwa-gestor-gh.firebaseapp.com",
+            projectId: "pwa-gestor-gh",
+            storageBucket: "pwa-gestor-gh.firebasestorage.app",
+            messagingSenderId: "900735167399",
+            appId: "1:900735167399:web:749618270b63477fdf2482",
+            measurementId: "G-6XZ2PQTHF7"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        // const analytics = getAnalytics(app); // Analytics is not used in this context, so commenting out
+
+        // Expose Firebase auth to the global scope for script.js
+        window.firebaseAuth = getAuth(app);
+        window.signInAnonymously = signInAnonymously;
+        window.signOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+    </script>
 </head>
 <body>
 
@@ -25,6 +54,11 @@
         <section id="home-view" class="view active">
             <header>
                 <h1>Gestor Inteligente</h1>
+                <!-- Firebase Connection Status Indicator -->
+                <div id="firebase-status" style="font-size: 0.8em; margin-top: 5px; display: flex; align-items: center; justify-content: flex-end;">
+                    <span id="firebase-status-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; background-color: grey;"></span>
+                    <span id="firebase-status-text">Status do Firebase: Desconectado</span>
+                </div>
             </header>
             <main class="nav-grid">
                 <div class="nav-card" data-view="cobranca-view">
@@ -278,6 +312,12 @@
                     <button id="export-btn" class="btn btn-primary"><i class="ph ph-download-simple"></i> Exportar Dados</button>
                     <button id="import-btn" class="btn btn-secondary"><i class="ph ph-upload-simple"></i> Importar Dados</button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
+                <!-- Firebase Login/Logout Button -->
+                <div style="margin-top: 2rem;">
+                    <h2>Autenticação Firebase</h2>
+                    <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Faça login para sincronizar seus dados com o Firebase (funcionalidade futura).</p>
+                    <button id="firebase-auth-btn" class="btn" style="width: 100%;"><i class="ph ph-user"></i> Logar com Firebase</button>
                 </div>
             </div>
         </section>

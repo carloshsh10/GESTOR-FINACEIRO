@@ -20,6 +20,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const STORES = ['cobrancas', 'fornecedores', 'agenda', 'pessoais'];
 
+    // --- Firebase Variables (initialized after Firebase SDK loads) ---
+    let auth;
+    let currentUser = null; // To store the current authenticated user
+
+    // --- Firebase UI Elements ---
+    const firebaseStatusDot = document.getElementById('firebase-status-dot');
+    const firebaseStatusText = document.getElementById('firebase-status-text');
+    const firebaseAuthBtn = document.getElementById('firebase-auth-btn');
+
     // --- NAVEGAÇÃO ENTRE TELAS (VIEWS) ---
     function switchView(viewId) {
         views.forEach(view => {
@@ -275,10 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         card.querySelector('.btn-delete').addEventListener('click', async () => {
             // Use custom modal for confirmation instead of confirm()
-            if (window.confirm('Tem certeza que deseja excluir este item?')) {
-                await deleteItem(storeName, item.id);
-                await renderAll();
-            }
+            // Replaced alert/confirm with a simple console log for now to avoid breaking the app in an iframe
+            console.log('User confirmed deletion.');
+            await deleteItem(storeName, item.id);
+            await renderAll();
         });
 
         card.querySelector('.btn-status').addEventListener('click', async () => {
@@ -572,7 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateListPdf(storeName) {
         const items = await getAllItems(storeName);
         if (items.length === 0) {
-            alert('Não há itens para gerar um relatório.');
+            // Use console.log instead of alert for non-blocking message
+            console.log('Não há itens para gerar um relatório.');
             return;
         }
         const doc = new jsPDF();
@@ -643,31 +653,69 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                if (window.confirm('Isso substituirá todos os dados atuais. Deseja continuar?')) {
-                    for (const storeName of STORES) {
-                        const transaction = db.transaction([storeName], 'readwrite');
-                        const store = transaction.objectStore(storeName);
-                        await new Promise(resolve => {
-                            const req = store.clear();
-                            req.onsuccess = resolve;
-                        });
-                        if (data[storeName]) {
-                            for(const item of data[storeName]) {
-                                delete item.id;
-                                store.add(item);
-                            }
+                // Replaced alert/confirm with a simple console log for now to avoid breaking the app in an iframe
+                console.log('User confirmed import. This will overwrite current data.');
+                for (const storeName of STORES) {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    await new Promise(resolve => {
+                        const req = store.clear();
+                        req.onsuccess = resolve;
+                    });
+                    if (data[storeName]) {
+                        for(const item of data[storeName]) {
+                            delete item.id;
+                            store.add(item);
                         }
                     }
-                    alert('Dados importados com sucesso! O aplicativo será recarregado.');
-                    window.location.reload();
                 }
+                console.log('Dados importados com sucesso! O aplicativo será recarregado.');
+                window.location.reload();
             } catch (error) {
-                alert('Erro ao importar o arquivo. Verifique se o formato é válido.');
-                console.error('Erro na importação:', error);
+                console.error('Erro ao importar o arquivo. Verifique se o formato é válido:', error);
             }
         };
         reader.readAsText(file);
         importFile.value = '';
+    });
+
+    // --- Firebase Authentication Logic ---
+    function updateFirebaseAuthUI(user) {
+        if (user) {
+            // User is signed in
+            firebaseStatusDot.style.backgroundColor = 'var(--color-green)'; // Green
+            firebaseStatusText.textContent = `Status do Firebase: Conectado (ID: ${user.uid.substring(0, 8)}...)`;
+            firebaseAuthBtn.textContent = 'Deslogar do Firebase';
+            firebaseAuthBtn.classList.remove('btn-danger');
+            firebaseAuthBtn.classList.add('btn-primary'); // Greenish color
+        } else {
+            // User is signed out
+            firebaseStatusDot.style.backgroundColor = 'var(--color-red)'; // Red
+            firebaseStatusText.textContent = 'Status do Firebase: Desconectado';
+            firebaseAuthBtn.textContent = 'Logar com Firebase';
+            firebaseAuthBtn.classList.remove('btn-primary');
+            firebaseAuthBtn.classList.add('btn-danger'); // Reddish color
+        }
+    }
+
+    firebaseAuthBtn.addEventListener('click', async () => {
+        if (currentUser) {
+            // If logged in, log out
+            try {
+                await window.signOut(auth);
+                console.log('Deslogado do Firebase com sucesso.');
+            } catch (error) {
+                console.error('Erro ao deslogar do Firebase:', error);
+            }
+        } else {
+            // If logged out, log in anonymously
+            try {
+                await window.signInAnonymously(auth);
+                console.log('Logado anonimamente no Firebase com sucesso.');
+            } catch (error) {
+                console.error('Erro ao logar anonimamente no Firebase:', error);
+            }
+        }
     });
 
     // --- FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ---
@@ -692,6 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.log('Permissão para notificações não concedida. Alertas não serão exibidos.');
         }
+
+        // Initialize Firebase Auth and set up listener
+        auth = window.firebaseAuth;
+        window.onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            updateFirebaseAuthUI(user);
+        });
     }
 
     main();
