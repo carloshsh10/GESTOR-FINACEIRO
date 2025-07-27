@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Meta Tags para PWA -->
     <meta name="theme-color" content="#1a1a2e"/>
     <meta name="description" content="Web App de Organização Financeira Pessoal e Empresarial">
     <link rel="manifest" href="manifest.json">
@@ -12,13 +11,10 @@
 
     <title>Gestor Financeiro Inteligente</title>
     
-    <!-- Link para o arquivo de Estilo (CSS) -->
     <link rel="stylesheet" href="style.css">
 
-    <!-- Ícones (Phosphor Icons) -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
@@ -50,11 +46,9 @@
 <body>
 
     <div class="app-container">
-        <!-- TELA INICIAL -->
         <section id="home-view" class="view active">
             <header>
                 <h1>Gestor Inteligente</h1>
-                <!-- Firebase Connection Status Indicator -->
                 <div id="firebase-status" style="font-size: 0.8em; margin-top: 5px; display: flex; align-items: center; justify-content: flex-end;">
                     <span id="firebase-status-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; background-color: grey;"></span>
                     <span id="firebase-status-text">Status do Firebase: Desconectado</span>
@@ -93,7 +87,6 @@
             </main>
         </section>
 
-        <!-- TELA DE COBRANÇAS -->
         <section id="cobranca-view" class="view">
             <div class="view-header">
                 <h1><i class="ph-bold ph-currency-dollar"></i> Cobranças</h1>
@@ -147,7 +140,6 @@
             <div class="item-list" id="cobranca-list"></div>
         </section>
 
-        <!-- TELA DE FORNECEDORES -->
         <section id="fornecedor-view" class="view">
              <div class="view-header">
                 <h1><i class="ph-bold ph-truck"></i> Fornecedores</h1>
@@ -191,7 +183,6 @@
             <div class="item-list" id="fornecedor-list"></div>
         </section>
 
-        <!-- TELA DE AGENDA -->
         <section id="agenda-view" class="view">
             <div class="view-header">
                 <h1><i class="ph-bold ph-calendar"></i> Agenda</h1>
@@ -252,7 +243,6 @@
             <div class="item-list" id="agenda-list"></div>
         </section>
 
-        <!-- TELA DE DESPESAS PESSOAIS -->
         <section id="pessoal-view" class="view">
             <div class="view-header">
                 <h1><i class="ph-bold ph-house"></i> Despesas Pessoais</h1>
@@ -299,7 +289,6 @@
             <div class="item-list" id="pessoal-list"></div>
         </section>
 
-        <!-- TELA DE BACKUP -->
         <section id="backup-view" class="view">
             <div class="view-header">
                 <h1><i class="ph-bold ph-database"></i> Backup e Restauração</h1>
@@ -313,7 +302,6 @@
                     <button id="import-btn" class="btn btn-secondary"><i class="ph ph-upload-simple"></i> Importar Dados</button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
-                <!-- Firebase Login/Logout Button -->
                 <div style="margin-top: 2rem;">
                     <h2>Autenticação Firebase</h2>
                     <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Faça login para sincronizar seus dados com o Firebase (funcionalidade futura).</p>
@@ -323,7 +311,6 @@
         </section>
     </div>
 
-    <!-- MODAL PARA EDIÇÃO -->
     <div id="edit-modal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modal-title">Editar Item</h2>
@@ -331,12 +318,88 @@
         </div>
     </div>
 
-    <!-- Bibliotecas de terceiros -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     
-    <!-- Link para o arquivo de Script (JavaScript) -->
     <script src="script.js"></script>
+
+    <script>
+        // Adiciona a lógica para enviar o badge count para o Service Worker
+        if ('serviceWorker' in navigator && 'setAppBadge' in navigator) {
+            // Função para enviar a contagem de badges ao Service Worker
+            async function sendBadgeCountToSW(count) {
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'SET_BADGE_COUNT',
+                        count: count
+                    });
+                } else {
+                    // Se o service worker ainda não está ativo, tenta registrar um listener
+                    navigator.serviceWorker.ready.then(registration => {
+                        if (registration.active) {
+                            registration.active.postMessage({
+                                type: 'SET_BADGE_COUNT',
+                                count: count
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Monitora os badges internos e atualiza o badge do PWA
+            function updatePWABadge() {
+                const cobrancaCount = parseInt(document.getElementById('cobranca-badge')?.textContent || '0');
+                const fornecedorCount = parseInt(document.getElementById('fornecedor-badge')?.textContent || '0');
+                const agendaCount = parseInt(document.getElementById('agenda-badge')?.textContent || '0');
+                const pessoalCount = parseInt(document.getElementById('pessoal-badge')?.textContent || '0');
+
+                const totalPending = cobrancaCount + fornecedorCount + agendaCount + pessoalCount;
+                sendBadgeCountToSW(totalPending);
+            }
+
+            // O script.js provavelmente já atualiza os badges internos.
+            // Precisamos garantir que, após a atualização dos badges internos,
+            // o badge do PWA seja atualizado.
+            // Para isso, você pode chamar `updatePWABadge()` no `script.js`
+            // sempre que os dados (e, consequentemente, os contadores de badge)
+            // forem atualizados ou recarregados.
+            //
+            // Exemplo de onde você chamaria isso no script.js:
+            // - Após carregar os dados iniciais do IndexedDB.
+            // - Após adicionar, editar ou excluir um item que possa mudar o status "pendente".
+            //
+            // Por simplicidade e para não alterar o script.js diretamente,
+            // adicionamos um MutationObserver para os badges internos.
+            // Esta é uma solução mais "autônoma" para o index.html.
+            const badgeElements = [
+                document.getElementById('cobranca-badge'),
+                document.getElementById('fornecedor-badge'),
+                document.getElementById('agenda-badge'),
+                document.getElementById('pessoal-badge')
+            ].filter(el => el != null); // Filtra elementos que possam não existir
+
+            if (badgeElements.length > 0) {
+                const observer = new MutationObserver(updatePWABadge);
+                badgeElements.forEach(badge => {
+                    observer.observe(badge, { childList: true, subtree: true, characterData: true });
+                });
+                // Garante que o badge seja definido na primeira carga
+                window.addEventListener('load', updatePWABadge);
+            } else {
+                // Se por algum motivo os badges não existirem, ainda tenta definir um badge inicial
+                window.addEventListener('load', () => sendBadgeCountToSW(0));
+            }
+
+            // Tenta limpar o badge ao focar no aplicativo
+            window.addEventListener('focus', () => {
+                if ('clearAppBadge' in navigator) {
+                    navigator.clearAppBadge().catch(error => console.error('Erro ao limpar o badge:', error));
+                }
+            });
+
+        } else {
+            console.warn('API Badging ou Service Worker não suportado neste navegador.');
+        }
+    </script>
 </body>
 </html>
-

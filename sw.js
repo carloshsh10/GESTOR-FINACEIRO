@@ -111,25 +111,31 @@ function getDaysUntilDue(dateString) {
 // Função principal que verifica e envia as notificações
 async function checkAndSendNotifications() {
     console.log('[SW] Verificando compromissos para notificação...');
+    let totalPendingCount = 0; // Inicializa o contador para o badge
+
     try {
         await initDB();
 
         const storeConfig = {
             cobrancas: {
                 title: 'Cobrança Próxima!',
-                getMessage: (item) => `A cobrança de ${item.cliente} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+                getMessage: (item) => `A cobrança de ${item.cliente} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`,
+                dateField: 'vencimento'
             },
             fornecedores: {
                 title: 'Pagamento de Fornecedor Próximo!',
-                getMessage: (item) => `O pagamento para ${item.nome} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+                getMessage: (item) => `O pagamento para ${item.nome} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`,
+                dateField: 'vencimento'
             },
             agenda: {
                 title: 'Compromisso Próximo!',
-                getMessage: (item) => `Você tem um compromisso com ${item.cliente} em ${formatDate(item.data)} às ${item.horario}.`
+                getMessage: (item) => `Você tem um compromisso com ${item.cliente} em ${formatDate(item.data)} às ${item.horario}.`,
+                dateField: 'data'
             },
             pessoais: {
                 title: 'Despesa Pessoal Próxima!',
-                getMessage: (item) => `A despesa de ${item.conta} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+                getMessage: (item) => `A despesa de ${item.conta} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`,
+                dateField: 'vencimento'
             },
         };
 
@@ -137,34 +143,62 @@ async function checkAndSendNotifications() {
             const items = await getAllItems(storeName);
             const config = storeConfig[storeName];
             const alertDays = parseInt(await getConfig(`${storeName}_notif_days`) || 5);
+            let storePendingCount = 0; // Contador para a loja atual
 
             for (const item of items) {
-                if (item.status === 'pendente') {
-                    const daysDue = getDaysUntilDue(item.vencimento || item.data);
+                // Modificado: Se o item tiver um status e for 'pendente'
+                // Ou se for da agenda, verifica se a data é futura ou hoje
+                const isPending = item.status === 'pendente';
+                const isAgendaFutureOrToday = storeName === 'agenda' && getDaysUntilDue(item.data) >= 0;
 
-                    if (daysDue <= alertDays && daysDue >= -1) {
-                        const notificationMessage = config.getMessage(item);
-                        
-                        await self.registration.showNotification(config.title, {
-                            body: notificationMessage,
-                            icon: '/images/icons/icon-192x192.png',
-                            tag: `${storeName}-${item.id}`
-                        });
+                if (isPending || isAgendaFutureOrToday) {
+                    const daysDue = getDaysUntilDue(item[config.dateField]);
+
+                    // Condição para notificação (e também para contar no badge)
+                    // Considera itens que vencem ou têm compromisso dentro do período de alerta
+                    // ou que já venceram/passaram (diasDue <= 0), mas ainda estão pendentes
+                    if (daysDue <= alertDays && daysDue >= -Infinity) { // Ajustado para contar também itens vencidos
+                         // Evitar notificações duplicadas se o item já foi notificado hoje
+                        const notificationTag = `${storeName}-${item.id}`;
+                        const notifications = await self.registration.getNotifications({tag: notificationTag});
+                        if (notifications.length === 0) {
+                            const notificationMessage = config.getMessage(item);
+                            await self.registration.showNotification(config.title, {
+                                body: notificationMessage,
+                                icon: '/images/icons/icon-192x192.png',
+                                tag: notificationTag
+                            });
+                        }
+                        storePendingCount++; // Incrementa o contador de pendentes para esta categoria
                     }
                 }
             }
+            totalPendingCount += storePendingCount; // Soma ao total geral
         }
+
+        // Define o badge do aplicativo com a contagem total de itens pendentes
+        if ('setAppBadge' in navigator) {
+            if (totalPendingCount > 0) {
+                await navigator.setAppBadge(totalPendingCount);
+                console.log(`[SW] Badge do aplicativo definido para: ${totalPendingCount}`);
+            } else {
+                await navigator.clearAppBadge();
+                console.log('[SW] Badge do aplicativo limpo.');
+            }
+        } else {
+            console.warn('[SW] API Badging não suportada para atualização automática pelo SW.');
+        }
+
     } catch (error) {
-        console.error('[SW] Erro durante a verificação de notificações:', error);
+        console.error('[SW] Erro durante a verificação de notificações e badge:', error);
     } finally {
-        // CORREÇÃO: A conexão com o banco de dados é fechada aqui,
-        // após todas as verificações terem sido concluídas.
         if (db) {
             db.close();
             console.log('[SW] Conexão com o banco de dados fechada.');
         }
     }
 }
+
 
 // Listener para a Sincronização Periódica em Segundo Plano
 self.addEventListener('periodicsync', event => {
@@ -173,6 +207,29 @@ self.addEventListener('periodicsync', event => {
         event.waitUntil(checkAndSendNotifications());
     }
 });
+
+// NOVO: Listener para mensagens da página principal (para badge)
+self.addEventListener('message', async (event) => {
+    if (event.data && event.data.type === 'SET_BADGE_COUNT') {
+        const count = event.data.count;
+        if ('setAppBadge' in navigator) {
+            try {
+                if (count > 0) {
+                    await navigator.setAppBadge(count);
+                    console.log(`[SW] Badge definido via mensagem da página para: ${count}`);
+                } else {
+                    await navigator.clearAppBadge();
+                    console.log('[SW] Badge limpo via mensagem da página.');
+                }
+            } catch (error) {
+                console.error('[SW] Erro ao definir/limpar o badge via mensagem:', error);
+            }
+        } else {
+            console.warn('[SW] API Badging não suportada para definição via mensagem.');
+        }
+    }
+});
+
 
 // Listener para cliques na notificação (EXISTENTE E CORRETO)
 self.addEventListener('notificationclick', event => {
