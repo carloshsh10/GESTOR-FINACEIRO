@@ -1,6 +1,6 @@
 // sw.js
 
-// --- LÓGICA DE CACHE (EXISTENTE) ---
+// --- LÓGICA DE CACHE (EXISTENTE E INALTERADA) ---
 const CACHE_NAME = 'financeiro-pwa-cache-v1';
 const urlsToCache = [
     '/',
@@ -111,52 +111,59 @@ function getDaysUntilDue(dateString) {
 // Função principal que verifica e envia as notificações
 async function checkAndSendNotifications() {
     console.log('[SW] Verificando compromissos para notificação...');
-    await initDB();
+    try {
+        await initDB();
 
-    const storeConfig = {
-        cobrancas: {
-            title: 'Cobrança Próxima!',
-            getMessage: (item) => `A cobrança de ${item.cliente} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-        },
-        fornecedores: {
-            title: 'Pagamento de Fornecedor Próximo!',
-            getMessage: (item) => `O pagamento para ${item.nome} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-        },
-        agenda: {
-            title: 'Compromisso Próximo!',
-            getMessage: (item) => `Você tem um compromisso com ${item.cliente} em ${formatDate(item.data)} às ${item.horario}.`
-        },
-        pessoais: {
-            title: 'Despesa Pessoal Próxima!',
-            getMessage: (item) => `A despesa de ${item.conta} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
-        },
-    };
+        const storeConfig = {
+            cobrancas: {
+                title: 'Cobrança Próxima!',
+                getMessage: (item) => `A cobrança de ${item.cliente} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+            },
+            fornecedores: {
+                title: 'Pagamento de Fornecedor Próximo!',
+                getMessage: (item) => `O pagamento para ${item.nome} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+            },
+            agenda: {
+                title: 'Compromisso Próximo!',
+                getMessage: (item) => `Você tem um compromisso com ${item.cliente} em ${formatDate(item.data)} às ${item.horario}.`
+            },
+            pessoais: {
+                title: 'Despesa Pessoal Próxima!',
+                getMessage: (item) => `A despesa de ${item.conta} no valor de R$ ${item.valor ? item.valor.toFixed(2) : 'N/A'} vence em ${formatDate(item.vencimento)}.`
+            },
+        };
 
-    for (const storeName in storeConfig) {
-        const items = await getAllItems(storeName);
-        const config = storeConfig[storeName];
-        // Busca a configuração de dias do usuário ou usa 5 como padrão.
-        const alertDays = parseInt(await getConfig(`${storeName}_notif_days`) || 5);
+        for (const storeName in storeConfig) {
+            const items = await getAllItems(storeName);
+            const config = storeConfig[storeName];
+            const alertDays = parseInt(await getConfig(`${storeName}_notif_days`) || 5);
 
-        for (const item of items) {
-            if (item.status === 'pendente') {
-                const daysDue = getDaysUntilDue(item.vencimento || item.data);
+            for (const item of items) {
+                if (item.status === 'pendente') {
+                    const daysDue = getDaysUntilDue(item.vencimento || item.data);
 
-                // Se o item vence dentro do prazo configurado (e não está vencido há muito tempo)
-                if (daysDue <= alertDays && daysDue >= -1) { // Notifica até 1 dia depois de vencer
-                    const notificationMessage = config.getMessage(item);
-                    
-                    // Usa a API correta para mostrar notificação a partir do Service Worker
-                    await self.registration.showNotification(config.title, {
-                        body: notificationMessage,
-                        icon: '/images/icons/icon-192x192.png',
-                        tag: `${storeName}-${item.id}` // Agrupa notificações para o mesmo item
-                    });
+                    if (daysDue <= alertDays && daysDue >= -1) {
+                        const notificationMessage = config.getMessage(item);
+                        
+                        await self.registration.showNotification(config.title, {
+                            body: notificationMessage,
+                            icon: '/images/icons/icon-192x192.png',
+                            tag: `${storeName}-${item.id}`
+                        });
+                    }
                 }
             }
         }
+    } catch (error) {
+        console.error('[SW] Erro durante a verificação de notificações:', error);
+    } finally {
+        // CORREÇÃO: A conexão com o banco de dados é fechada aqui,
+        // após todas as verificações terem sido concluídas.
+        if (db) {
+            db.close();
+            console.log('[SW] Conexão com o banco de dados fechada.');
+        }
     }
-    db.close(); // Fecha a conexão com o banco após o uso
 }
 
 // Listener para a Sincronização Periódica em Segundo Plano
@@ -184,4 +191,3 @@ self.addEventListener('notificationclick', event => {
         })
     );
 });
-
