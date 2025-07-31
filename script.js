@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Firebase Variables (initialized after Firebase SDK loads) ---
     let auth;
-    let currentUser = null; // To store the current authenticated user
+    let currentUser = null; // Para armazenar o usuário autenticado
 
     // --- Firebase UI Elements ---
     const firebaseStatusDot = document.getElementById('firebase-status-dot');
@@ -283,8 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         card.querySelector('.btn-delete').addEventListener('click', async () => {
-            // Use custom modal for confirmation instead of confirm()
-            // Replaced alert/confirm with a simple console log for now to avoid breaking the app in an iframe
             console.log('User confirmed deletion.');
             await deleteItem(storeName, item.id);
             await renderAll();
@@ -514,7 +512,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // REPARO: Esta função agora cuida apenas dos badges visuais.
     async function updateVisualBadges() {
         let totalAppBadgeCount = 0;
         const badgeConfig = {
@@ -526,10 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const storeName in badgeConfig) {
             const items = await getAllItems(storeName);
-            
-            // REPARO: Conta todos os itens pendentes, não apenas os que estão perto de vencer.
             const pendingCount = items.filter(item => item.status === 'pendente').length;
-
             const badge = document.getElementById(badgeConfig[storeName]);
             if (badge) {
                 if (pendingCount > 0) {
@@ -552,16 +546,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // NOVO: Função para registrar a verificação periódica em segundo plano.
     async function registerPeriodicSync() {
         try {
             const registration = await navigator.serviceWorker.ready;
-            // Verifica se o navegador suporta a API de Sincronização Periódica.
             if ('periodicSync' in registration) {
-                // Pede permissão ao usuário.
                 const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
                 if (status.state === 'granted') {
-                    // Registra a tarefa para ocorrer no mínimo a cada 12 horas.
                     await registration.periodicSync.register('check-due-dates', {
                         minInterval: 12 * 60 * 60 * 1000, 
                     });
@@ -581,7 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateListPdf(storeName) {
         const items = await getAllItems(storeName);
         if (items.length === 0) {
-            // Use console.log instead of alert for non-blocking message
             console.log('Não há itens para gerar um relatório.');
             return;
         }
@@ -653,7 +642,6 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                // Replaced alert/confirm with a simple console log for now to avoid breaking the app in an iframe
                 console.log('User confirmed import. This will overwrite current data.');
                 for (const storeName of STORES) {
                     const transaction = db.transaction([storeName], 'readwrite');
@@ -679,41 +667,45 @@ document.addEventListener('DOMContentLoaded', () => {
         importFile.value = '';
     });
 
-    // --- Firebase Authentication Logic ---
+    // --- Firebase Authentication Logic (CORRIGIDO) ---
     function updateFirebaseAuthUI(user) {
         if (user) {
-            // User is signed in
-            firebaseStatusDot.style.backgroundColor = 'var(--color-green)'; // Green
-            firebaseStatusText.textContent = `Status do Firebase: Conectado (ID: ${user.uid.substring(0, 8)}...)`;
-            firebaseAuthBtn.textContent = 'Deslogar do Firebase';
+            // Usuário está logado
+            firebaseStatusDot.style.backgroundColor = 'var(--color-green)'; // Verde
+            firebaseStatusText.textContent = `Conectado como: ${user.displayName || user.email}`;
+            firebaseAuthBtn.innerHTML = '<i class="ph ph-sign-out"></i> Deslogar do Firebase';
             firebaseAuthBtn.classList.remove('btn-danger');
-            firebaseAuthBtn.classList.add('btn-primary'); // Greenish color
+            firebaseAuthBtn.classList.add('btn-primary');
         } else {
-            // User is signed out
-            firebaseStatusDot.style.backgroundColor = 'var(--color-red)'; // Red
+            // Usuário está deslogado
+            firebaseStatusDot.style.backgroundColor = 'var(--color-red)'; // Vermelho
             firebaseStatusText.textContent = 'Status do Firebase: Desconectado';
-            firebaseAuthBtn.textContent = 'Logar com Firebase';
+            firebaseAuthBtn.innerHTML = '<i class="ph ph-google-logo"></i> Logar com Google';
             firebaseAuthBtn.classList.remove('btn-primary');
-            firebaseAuthBtn.classList.add('btn-danger'); // Reddish color
+            firebaseAuthBtn.classList.add('btn-danger');
         }
     }
 
     firebaseAuthBtn.addEventListener('click', async () => {
         if (currentUser) {
-            // If logged in, log out
+            // Se estiver logado, faz o logout
             try {
                 await window.signOut(auth);
-                console.log('Deslogado do Firebase com sucesso.');
+                console.log('Usuário deslogado com sucesso.');
             } catch (error) {
-                console.error('Erro ao deslogar do Firebase:', error);
+                console.error('Erro ao deslogar:', error);
             }
         } else {
-            // If logged out, log in anonymously
+            // Se estiver deslogado, tenta fazer o login com Google
+            const provider = new window.GoogleAuthProvider();
             try {
-                await window.signInAnonymously(auth);
-                console.log('Logado anonimamente no Firebase com sucesso.');
+                const result = await window.signInWithPopup(auth, provider);
+                console.log('Login com Google bem-sucedido:', result.user);
             } catch (error) {
-                console.error('Erro ao logar anonimamente no Firebase:', error);
+                console.error('Erro ao fazer login com Google:', error);
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                console.error(`Código: ${errorCode}, Mensagem: ${errorMessage}`);
             }
         }
     });
@@ -724,7 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await renderList(storeName);
         }
         await calendar.render();
-        await updateVisualBadges(); // REPARO: Chamada para a função de badges corrigida.
+        await updateVisualBadges();
     }
 
     // --- INICIALIZAÇÃO DO APP ---
@@ -733,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await setupNotificationSettings();
         await calendar.init();
         await renderAll();
-        // NOVO: Pede permissão para notificações e registra a verificação em segundo plano.
+
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
             await registerPeriodicSync();
@@ -741,14 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Permissão para notificações não concedida. Alertas não serão exibidos.');
         }
 
-        // Initialize Firebase Auth and set up listener
+        // Inicializa o Firebase Auth e monitora o estado de autenticação
         auth = window.firebaseAuth;
         window.onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            updateFirebaseAuthUI(user);
+            currentUser = user; // Atualiza o usuário atual
+            updateFirebaseAuthUI(user); // Atualiza a interface
         });
     }
 
     main();
 });
-

@@ -16,12 +16,17 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <script type="module">
-        // Import the functions you need from the SDKs you need
+        // Importa as funções necessárias do SDK do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
-        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
-        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js"; // Analytics is not used in this context, so commenting out
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            GoogleAuthProvider, // Importado para o login com Google
+            signInWithPopup,    // Importado para abrir o pop-up de login
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
 
-        // Your web app's Firebase configuration
+        // Sua configuração do Firebase (mantenha como está)
         const firebaseConfig = {
             apiKey: "AIzaSyAZE9ihM7rtIWCEzoC4LB-0uNt17o46V_c",
             authDomain: "pwa-gestor-gh.firebaseapp.com",
@@ -32,13 +37,14 @@
             measurementId: "G-6XZ2PQTHF7"
         };
 
-        // Initialize Firebase
+        // Inicializa o Firebase
         const app = initializeApp(firebaseConfig);
-        // const analytics = getAnalytics(app); // Analytics is not used in this context, so commenting out
+        const auth = getAuth(app);
 
-        // Expose Firebase auth to the global scope for script.js
-        window.firebaseAuth = getAuth(app);
-        window.signInAnonymously = signInAnonymously;
+        // Expõe as funções de autenticação para o script.js
+        window.firebaseAuth = auth;
+        window.GoogleAuthProvider = GoogleAuthProvider;
+        window.signInWithPopup = signInWithPopup;
         window.signOut = signOut;
         window.onAuthStateChanged = onAuthStateChanged;
     </script>
@@ -304,8 +310,8 @@
                 </div>
                 <div style="margin-top: 2rem;">
                     <h2>Autenticação Firebase</h2>
-                    <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Faça login para sincronizar seus dados com o Firebase (funcionalidade futura).</p>
-                    <button id="firebase-auth-btn" class="btn" style="width: 100%;"><i class="ph ph-user"></i> Logar com Firebase</button>
+                    <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Faça login com sua conta Google para sincronizar e proteger seus dados na nuvem (funcionalidade futura).</p>
+                    <button id="firebase-auth-btn" class="btn btn-danger" style="width: 100%;"><i class="ph ph-user"></i> Logar com Google</button>
                 </div>
             </div>
         </section>
@@ -322,11 +328,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     
     <script src="script.js"></script>
-
+    
     <script>
-        // Adiciona a lógica para enviar o badge count para o Service Worker
         if ('serviceWorker' in navigator && 'setAppBadge' in navigator) {
-            // Função para enviar a contagem de badges ao Service Worker
             async function sendBadgeCountToSW(count) {
                 if (navigator.serviceWorker.controller) {
                     navigator.serviceWorker.controller.postMessage({
@@ -334,7 +338,6 @@
                         count: count
                     });
                 } else {
-                    // Se o service worker ainda não está ativo, tenta registrar um listener
                     navigator.serviceWorker.ready.then(registration => {
                         if (registration.active) {
                             registration.active.postMessage({
@@ -346,51 +349,32 @@
                 }
             }
 
-            // Monitora os badges internos e atualiza o badge do PWA
             function updatePWABadge() {
                 const cobrancaCount = parseInt(document.getElementById('cobranca-badge')?.textContent || '0');
                 const fornecedorCount = parseInt(document.getElementById('fornecedor-badge')?.textContent || '0');
                 const agendaCount = parseInt(document.getElementById('agenda-badge')?.textContent || '0');
                 const pessoalCount = parseInt(document.getElementById('pessoal-badge')?.textContent || '0');
-
                 const totalPending = cobrancaCount + fornecedorCount + agendaCount + pessoalCount;
                 sendBadgeCountToSW(totalPending);
             }
 
-            // O script.js provavelmente já atualiza os badges internos.
-            // Precisamos garantir que, após a atualização dos badges internos,
-            // o badge do PWA seja atualizado.
-            // Para isso, você pode chamar `updatePWABadge()` no `script.js`
-            // sempre que os dados (e, consequentemente, os contadores de badge)
-            // forem atualizados ou recarregados.
-            //
-            // Exemplo de onde você chamaria isso no script.js:
-            // - Após carregar os dados iniciais do IndexedDB.
-            // - Após adicionar, editar ou excluir um item que possa mudar o status "pendente".
-            //
-            // Por simplicidade e para não alterar o script.js diretamente,
-            // adicionamos um MutationObserver para os badges internos.
-            // Esta é uma solução mais "autônoma" para o index.html.
             const badgeElements = [
                 document.getElementById('cobranca-badge'),
                 document.getElementById('fornecedor-badge'),
                 document.getElementById('agenda-badge'),
                 document.getElementById('pessoal-badge')
-            ].filter(el => el != null); // Filtra elementos que possam não existir
+            ].filter(el => el != null);
 
             if (badgeElements.length > 0) {
                 const observer = new MutationObserver(updatePWABadge);
                 badgeElements.forEach(badge => {
                     observer.observe(badge, { childList: true, subtree: true, characterData: true });
                 });
-                // Garante que o badge seja definido na primeira carga
                 window.addEventListener('load', updatePWABadge);
             } else {
-                // Se por algum motivo os badges não existirem, ainda tenta definir um badge inicial
                 window.addEventListener('load', () => sendBadgeCountToSW(0));
             }
 
-            // Tenta limpar o badge ao focar no aplicativo
             window.addEventListener('focus', () => {
                 if ('clearAppBadge' in navigator) {
                     navigator.clearAppBadge().catch(error => console.error('Erro ao limpar o badge:', error));
