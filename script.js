@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Firebase Variables (initialized after Firebase SDK loads) ---
     let auth;
     let currentUser = null; // Para armazenar o usuário autenticado
+    let dbFirestore;
 
     // --- Firebase UI Elements ---
     const firebaseStatusDot = document.getElementById('firebase-status-dot');
@@ -84,9 +85,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- OPERAÇÕES CRUD NO BANCO DE DADOS ---
-    function addItem(storeName, item) {
-        return new Promise((resolve, reject) => {
+    // --- OPERAÇÕES CRUD NO BANCO DE DADOS E FIREBASE ---
+    async function addItem(storeName, item) {
+        return new Promise(async (resolve, reject) => {
+            if (currentUser) {
+                try {
+                    const docRef = await window.firebaseFirestore.addDoc(
+                        window.firebaseFirestore.collection(window.firebaseFirestore.db, `users/${currentUser.uid}/${storeName}`),
+                        item
+                    );
+                    item.firebaseId = docRef.id;
+                } catch (e) {
+                    console.error("Erro ao adicionar documento no Firebase: ", e);
+                }
+            }
+
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.add(item);
@@ -95,11 +108,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getAllItems(storeName) {
-        return new Promise((resolve, reject) => {
+    async function getAllItems(storeName) {
+        return new Promise(async (resolve, reject) => {
             if (!db) {
                 return reject("Banco de dados não inicializado.");
             }
+            if (currentUser) {
+                 try {
+                    const localItems = await new Promise((res, rej) => {
+                         const transaction = db.transaction([storeName], 'readonly');
+                         const store = transaction.objectStore(storeName);
+                         const request = store.getAll();
+                         request.onsuccess = () => res(request.result);
+                         request.onerror = (e) => rej(e.target.error);
+                    });
+                     const firebaseDocs = await window.firebaseFirestore.getDocs(
+                        window.firebaseFirestore.collection(window.firebaseFirestore.db, `users/${currentUser.uid}/${storeName}`)
+                    );
+                    const firebaseItems = firebaseDocs.docs.map(doc => ({
+                        ...doc.data(),
+                        id: doc.data().id, // Manter o ID do IndexedDB
+                        firebaseId: doc.id
+                    }));
+                    
+                    const mergedItems = [...localItems, ...firebaseItems].reduce((acc, current) => {
+                        const x = acc.find(item => item.firebaseId === current.firebaseId);
+                        if (!x) {
+                            return acc.concat([current]);
+                        } else {
+                            return acc;
+                        }
+                    }, []);
+
+                    const uniqueItems = mergedItems.filter((item, index, self) => 
+                        index === self.findIndex((t) => (
+                            t.id === item.id || t.firebaseId === item.firebaseId
+                        ))
+                    );
+
+                    resolve(uniqueItems);
+                    return;
+                } catch (e) {
+                     console.error("Erro ao buscar dados do Firebase: ", e);
+                }
+            }
+            
             const transaction = db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
             const request = store.getAll();
@@ -108,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getItem(storeName, id) {
+    async function getItem(storeName, id) {
          return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
@@ -118,8 +171,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateItem(storeName, item) {
-        return new Promise((resolve, reject) => {
+    async function updateItem(storeName, item) {
+        return new Promise(async (resolve, reject) => {
+            if (currentUser && item.firebaseId) {
+                try {
+                     await window.firebaseFirestore.setDoc(
+                        window.firebaseFirestore.doc(window.firebaseFirestore.db, `users/${currentUser.uid}/${storeName}`, item.firebaseId),
+                        item
+                    );
+                } catch (e) {
+                    console.error("Erro ao atualizar documento no Firebase: ", e);
+                }
+            }
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.put(item);
@@ -128,8 +191,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function deleteItem(storeName, id) {
-        return new Promise((resolve, reject) => {
+    async function deleteItem(storeName, id) {
+        return new Promise(async (resolve, reject) => {
+            const itemToDelete = await getItem(storeName, id);
+            if (currentUser && itemToDelete.firebaseId) {
+                try {
+                    await window.firebaseFirestore.deleteDoc(
+                        window.firebaseFirestore.doc(window.firebaseFirestore.db, `users/${currentUser.uid}/${storeName}`, itemToDelete.firebaseId)
+                    );
+                } catch (e) {
+                     console.error("Erro ao deletar documento no Firebase: ", e);
+                }
+            }
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             const request = store.delete(id);
@@ -668,17 +741,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Firebase Authentication Logic (CORRIGIDO) ---
+    async function syncDataFromFirebaseToIndexedDB(user) {
+        if (!user) return;
+        for (const storeName of STORES) {
+            try {
+                const querySnapshot = await window.firebaseFirestore.getDocs(
+                    window.firebaseFirestore.collection(window.firebaseFirestore.db, `users/${user.uid}/${storeName}`)
+                );
+                
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const itemToStore = {
+                        ...data,
+                        id: data.id || Date.now(), // Garante que cada item tenha um ID único para IndexedDB
+                        firebaseId: doc.id
+                    };
+                    store.put(itemToStore);
+                });
+                
+            } catch (e) {
+                console.error(`Erro ao sincronizar dados do Firebase para o IndexedDB na store ${storeName}:`, e);
+            }
+        }
+        await renderAll();
+    }
+
     function updateFirebaseAuthUI(user) {
         if (user) {
-            // Usuário está logado
-            firebaseStatusDot.style.backgroundColor = 'var(--color-green)'; // Verde
+            firebaseStatusDot.style.backgroundColor = 'var(--color-green)';
             firebaseStatusText.textContent = `Conectado como: ${user.displayName || user.email}`;
             firebaseAuthBtn.innerHTML = '<i class="ph ph-sign-out"></i> Deslogar do Firebase';
             firebaseAuthBtn.classList.remove('btn-danger');
             firebaseAuthBtn.classList.add('btn-primary');
         } else {
-            // Usuário está deslogado
-            firebaseStatusDot.style.backgroundColor = 'var(--color-red)'; // Vermelho
+            firebaseStatusDot.style.backgroundColor = 'var(--color-red)';
             firebaseStatusText.textContent = 'Status do Firebase: Desconectado';
             firebaseAuthBtn.innerHTML = '<i class="ph ph-google-logo"></i> Logar com Google';
             firebaseAuthBtn.classList.remove('btn-primary');
@@ -688,7 +787,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     firebaseAuthBtn.addEventListener('click', async () => {
         if (currentUser) {
-            // Se estiver logado, faz o logout
             try {
                 await window.signOut(auth);
                 console.log('Usuário deslogado com sucesso.');
@@ -696,11 +794,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Erro ao deslogar:', error);
             }
         } else {
-            // Se estiver deslogado, tenta fazer o login com Google
             const provider = new window.GoogleAuthProvider();
             try {
                 const result = await window.signInWithPopup(auth, provider);
                 console.log('Login com Google bem-sucedido:', result.user);
+                await syncDataFromFirebaseToIndexedDB(result.user);
             } catch (error) {
                 console.error('Erro ao fazer login com Google:', error);
                 const errorCode = error.code;
@@ -722,6 +820,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INICIALIZAÇÃO DO APP ---
     async function main() {
         await initDB();
+        
+        // Atraso para garantir que as variáveis do Firebase estejam prontas
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        auth = window.firebaseAuth;
+        dbFirestore = window.firebaseFirestore.db;
+
+        window.onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            updateFirebaseAuthUI(user);
+            await renderAll();
+            if (user) {
+                await syncDataFromFirebaseToIndexedDB(user);
+            }
+        });
+
         await setupNotificationSettings();
         await calendar.init();
         await renderAll();
@@ -732,14 +846,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.log('Permissão para notificações não concedida. Alertas não serão exibidos.');
         }
-
-        // Inicializa o Firebase Auth e monitora o estado de autenticação
-        auth = window.firebaseAuth;
-        window.onAuthStateChanged(auth, (user) => {
-            currentUser = user; // Atualiza o usuário atual
-            updateFirebaseAuthUI(user); // Atualiza a interface
-        });
     }
-
     main();
 });

@@ -14,19 +14,31 @@
     <link rel="stylesheet" href="style.css">
 
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js"></script>
 
     <script type="module">
-        // Importa as funções necessárias do SDK do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
         import { 
             getAuth, 
             onAuthStateChanged,
-            GoogleAuthProvider, // Importado para o login com Google
-            signInWithPopup,    // Importado para abrir o pop-up de login
+            GoogleAuthProvider,
+            signInWithPopup,
             signOut 
         } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { 
+            getFirestore,
+            collection,
+            doc,
+            setDoc,
+            addDoc,
+            getDocs,
+            deleteDoc,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
-        // Sua configuração do Firebase (mantenha como está)
         const firebaseConfig = {
             apiKey: "AIzaSyAZE9ihM7rtIWCEzoC4LB-0uNt17o46V_c",
             authDomain: "pwa-gestor-gh.firebaseapp.com",
@@ -37,16 +49,26 @@
             measurementId: "G-6XZ2PQTHF7"
         };
 
-        // Inicializa o Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
+        const dbFirestore = getFirestore(app);
 
-        // Expõe as funções de autenticação para o script.js
         window.firebaseAuth = auth;
         window.GoogleAuthProvider = GoogleAuthProvider;
         window.signInWithPopup = signInWithPopup;
         window.signOut = signOut;
         window.onAuthStateChanged = onAuthStateChanged;
+        window.firebaseFirestore = {
+            db: dbFirestore,
+            collection,
+            doc,
+            setDoc,
+            addDoc,
+            getDocs,
+            deleteDoc,
+            query,
+            where
+        };
     </script>
 </head>
 <body>
@@ -311,7 +333,7 @@
                 <div style="margin-top: 2rem;">
                     <h2>Autenticação Firebase</h2>
                     <p style="color: var(--on-surface-secondary); margin-bottom: 1rem;">Faça login com sua conta Google para sincronizar e proteger seus dados na nuvem (funcionalidade futura).</p>
-                    <button id="firebase-auth-btn" class="btn btn-danger" style="width: 100%;"><i class="ph ph-user"></i> Logar com Google</button>
+                    <button type="button" id="firebase-auth-btn" class="btn btn-danger" style="width: 100%;"><i class="ph ph-user"></i> Logar com Google</button>
                 </div>
             </div>
         </section>
